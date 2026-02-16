@@ -1,0 +1,14 @@
+{
+  "name": "iphone-manager-ai-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "server+adb": "adb reverse tcp:3000 tcp:3000 && node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}
