@@ -5,6 +5,12 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+const GEMINI_MODELS = [
+  "gemini-2.0-flash",
+  "gemini-1.5-flash-latest",
+  "gemini-1.5-flash-8b",
+  "gemini-1.5-pro-latest",
+];
 
 app.use(
   cors({
@@ -43,14 +49,55 @@ Output rules:
 - For unknown, message must be short Arabic text.
 `.trim();
 
-let geminiModel = null;
-function getGeminiModel() {
+let geminiAi = null;
+function getGeminiAi() {
   if (!GEMINI_API_KEY) return null;
-  if (!geminiModel) {
-    const ai = new GoogleGenerativeAI(GEMINI_API_KEY);
-    geminiModel = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+  if (!geminiAi) {
+    geminiAi = new GoogleGenerativeAI(GEMINI_API_KEY);
   }
-  return geminiModel;
+  return geminiAi;
+}
+
+function isModelNotFoundError(message) {
+  const s = String(message || "").toLowerCase();
+  return (
+    s.includes("404") ||
+    s.includes("not found") ||
+    s.includes("is not supported")
+  );
+}
+
+async function generateWithFallbackModels(promptText) {
+  const ai = getGeminiAi();
+  if (!ai) {
+    throw new Error("GEMINI_API_KEY is missing");
+  }
+
+  let lastError = null;
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const model = ai.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: promptText }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0,
+        },
+      });
+      return result?.response?.text?.() || "";
+    } catch (error) {
+      lastError = error;
+      if (!isModelNotFoundError(error?.message)) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError || new Error("No supported Gemini model found");
 }
 
 function normalizeAction(payload) {
@@ -107,27 +154,9 @@ app.post("/ai/command", async (req, res) => {
       return res.status(400).json({ action: "unknown", message: "text is required" });
     }
 
-    const model = getGeminiModel();
-    if (!model) {
-      return res.status(500).json({
-        action: "unknown",
-        message: "GEMINI_API_KEY is missing",
-      });
-    }
-
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: `${ROUTER_PROMPT}\n\nUser command: ${text}` }],
-        },
-      ],
-      generationConfig: {
-        temperature: 0,
-      },
-    });
-
-    const raw = result?.response?.text?.() || "";
+    const raw = await generateWithFallbackModels(
+      `${ROUTER_PROMPT}\n\nUser command: ${text}`
+    );
     const parsed = tryParseJson(raw);
     if (!parsed) {
       return res.json({ action: "unknown", message: "رد غير صالح من Gemini" });
