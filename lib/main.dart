@@ -243,16 +243,47 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   }
 
   String _normalizePhone(String input) {
-    final digits = _toWesternDigits(input).replaceAll(RegExp(r'[^0-9]'), '');
+    final raw = _toWesternDigits(input);
+
+    final match = RegExp(r'(?:\\+?20)?\\s*0?1[0-2,5]\\d{8}').firstMatch(raw);
+    if (match != null) {
+      var s = match.group(0) ?? '';
+      s = s.replaceAll(RegExp(r'[^0-9]'), '');
+      if (s.startsWith('20') && s.length >= 12) s = '0${s.substring(2)}';
+      if (!s.startsWith('0') && s.length == 11) s = '0$s';
+      return s;
+    }
+
+    var digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
     if (digits.startsWith('20') && digits.length >= 12) {
-      return '0${digits.substring(2)}';
+      digits = '0${digits.substring(2)}';
+    }
+
+    final m2 = RegExp(r'01[0-2,5]\\d{8}').firstMatch(digits);
+    if (m2 != null) {
+      return m2.group(0) ?? digits;
     }
     return digits;
   }
 
+  List<String> _orderPhones(Map<String, String> order) {
+    final list = <String>[];
+    final p = _normalizePhone(order['phone'] ?? '');
+    if (p.isNotEmpty) list.add(p);
+
+    final extra = (order['phones'] ?? '').trim();
+    if (extra.isNotEmpty) {
+      for (final raw in extra.split(',')) {
+        final n = _normalizePhone(raw);
+        if (n.isNotEmpty) list.add(n);
+      }
+    }
+    return list.toSet().toList();
+  }
+
   String _customerKeyForOrder(Map<String, String> order) {
-    final phone = _normalizePhone(order['phone'] ?? '');
-    if (phone.isNotEmpty) return 'p:$phone';
+    final phones = _orderPhones(order);
+    if (phones.isNotEmpty) return 'p:${phones.first}';
     final address = _normalizeArabicName(order['address'] ?? '');
     if (address.isNotEmpty) return 'a:$address';
     return 'n:${_normalizeArabicName(order['name'] ?? '')}|g:${_normalizeArabicName(order['governorate'] ?? '')}';
@@ -260,13 +291,16 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   void _rebuildCustomersFromOrders() {
     final Map<String, Map<String, String>> grouped = {};
+    final Map<String, Set<String>> phonesByKey = {};
     for (final order in orders) {
       final key = _customerKeyForOrder(order);
       final existing = grouped[key];
+      final phones = _orderPhones(order);
+      phonesByKey.putIfAbsent(key, () => <String>{}).addAll(phones);
       if (existing == null) {
         grouped[key] = {
           'name': order['name'] ?? '',
-          'phone': _normalizePhone(order['phone'] ?? ''),
+          'phone': phones.isNotEmpty ? phones.first : _normalizePhone(order['phone'] ?? ''),
           'governorate': order['governorate'] ?? '',
           'address': order['address'] ?? '',
           'orders_count': '1',
@@ -279,6 +313,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         if (incomingDate.isNotEmpty) {
           existing['last_order_at'] = incomingDate;
         }
+        if ((existing['phone'] ?? '').isEmpty && phones.isNotEmpty) {
+          existing['phone'] = phones.first;
+        }
         if ((existing['address'] ?? '').isEmpty && (order['address'] ?? '').isNotEmpty) {
           existing['address'] = order['address'] ?? '';
         }
@@ -287,7 +324,18 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
     customers
       ..clear()
-      ..addAll(grouped.values);
+      ..addAll(
+        grouped.entries.map((e) {
+          final c = e.value;
+          final pset = phonesByKey[e.key] ?? <String>{};
+          final phone = _normalizePhone(c['phone'] ?? '');
+          final all = <String>{...pset};
+          if (phone.isNotEmpty) all.add(phone);
+          if (all.length > 1) c['phones'] = all.join(',');
+          c['phone'] = phone;
+          return c;
+        }),
+      );
     customers.sort((a, b) => (b['last_order_at'] ?? '').compareTo(a['last_order_at'] ?? ''));
   }
 
@@ -1745,6 +1793,146 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     List<Map<String, String>> filtered = List<Map<String, String>>.from(customers);
 
+    String formatIso(String iso) {
+      try {
+        final dt = DateTime.parse(iso).toLocal();
+        return "${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}";
+      } catch (_) {
+        return iso;
+      }
+    }
+
+    Future<void> normalizeOrders() async {
+      int changed = 0;
+      for (final o in orders) {
+        final beforePhone = o['phone'] ?? '';
+        final beforePhones = o['phones'] ?? '';
+
+        final list = <String>[];
+        final p = _normalizePhone(beforePhone);
+        if (p.isNotEmpty) list.add(p);
+        if (beforePhones.trim().isNotEmpty) {
+          for (final raw in beforePhones.split(',')) {
+            final n = _normalizePhone(raw);
+            if (n.isNotEmpty) list.add(n);
+          }
+        }
+        final unique = list.toSet().toList();
+        final nextPhone = unique.isNotEmpty ? unique.first : '';
+        final nextPhones = unique.length > 1 ? unique.join(',') : '';
+
+        if (nextPhone != _normalizePhone(beforePhone) || nextPhones != beforePhones.trim()) {
+          o['phone'] = nextPhone;
+          if (nextPhones.isEmpty) {
+            o.remove('phones');
+          } else {
+            o['phones'] = nextPhones;
+          }
+          changed++;
+        }
+      }
+
+      _rebuildCustomersFromOrders();
+      await _saveData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("تم تنظيف أرقام الهواتف (تحديث $changed أوردر)")));
+    }
+
+    Future<void> editCustomer(Map<String, String> customer) async {
+      final nameCtrl = TextEditingController(text: customer['name'] ?? '');
+      final phoneCtrl = TextEditingController(text: customer['phone'] ?? '');
+      final govCtrl = TextEditingController(text: customer['governorate'] ?? '');
+      final addrCtrl = TextEditingController(text: customer['address'] ?? '');
+      final oldPhone = _normalizePhone(customer['phone'] ?? '');
+      final oldAddr = _normalizeArabicName(customer['address'] ?? '');
+      final oldName = _normalizeArabicName(customer['name'] ?? '');
+      final oldGov = _normalizeArabicName(customer['governorate'] ?? '');
+
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dctx) => AlertDialog(
+          backgroundColor: _dialogBg(context),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
+          title: const Text("تعديل بيانات عميل", textAlign: TextAlign.right),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: nameCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "الاسم")),
+                const SizedBox(height: 8),
+                TextField(controller: phoneCtrl, keyboardType: TextInputType.phone, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "الهاتف")),
+                const SizedBox(height: 8),
+                TextField(controller: govCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "المحافظة")),
+                const SizedBox(height: 8),
+                TextField(controller: addrCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "العنوان")),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("إلغاء")),
+            ElevatedButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("حفظ")),
+          ],
+        ),
+      );
+
+      if (saved != true) return;
+
+      final newName = nameCtrl.text.trim();
+      final newPhone = _normalizePhone(phoneCtrl.text);
+      final newGov = govCtrl.text.trim();
+      final newAddr = addrCtrl.text.trim();
+
+      int updated = 0;
+      for (final o in orders) {
+        bool match = false;
+        if (oldPhone.isNotEmpty) {
+          final op = _normalizePhone(o['phone'] ?? '');
+          final extras = (o['phones'] ?? '').split(',').map(_normalizePhone).toSet();
+          match = op == oldPhone || extras.contains(oldPhone);
+        } else if (oldAddr.isNotEmpty) {
+          final oa = _normalizeArabicName(o['address'] ?? '');
+          match = oa.isNotEmpty && (oa.contains(oldAddr) || oldAddr.contains(oa));
+        } else {
+          final on = _normalizeArabicName(o['name'] ?? '');
+          final og = _normalizeArabicName(o['governorate'] ?? '');
+          match = on.isNotEmpty && on == oldName && (oldGov.isEmpty || og == oldGov);
+        }
+
+        if (!match) continue;
+
+        if (newName.isNotEmpty) o['name'] = newName;
+        if (newGov.isNotEmpty) o['governorate'] = newGov;
+        if (newAddr.isNotEmpty) o['address'] = newAddr;
+
+        if (newPhone.isNotEmpty) {
+          final extras = <String>{};
+          final op = _normalizePhone(o['phone'] ?? '');
+          if (op.isNotEmpty) extras.add(op);
+          final beforeExtras = (o['phones'] ?? '').split(',').map(_normalizePhone).where((x) => x.isNotEmpty);
+          extras.addAll(beforeExtras);
+          extras.add(newPhone);
+
+          o['phone'] = newPhone;
+          final list = extras.toList();
+          list.removeWhere((x) => x == newPhone);
+          if (list.isEmpty) {
+            o.remove('phones');
+          } else {
+            o['phones'] = list.join(',');
+          }
+        }
+
+        updated++;
+      }
+
+      _rebuildCustomersFromOrders();
+      await _saveData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("تم تحديث $updated أوردر لهذا العميل")));
+    }
+
     void applyFilter(StateSetter setStateDialog) {
       final q = _normalizeArabicName(searchCtrl.text);
       setStateDialog(() {
@@ -1797,6 +1985,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                           itemBuilder: (_, i) {
                             final c = filtered[i];
                             final cnt = c['orders_count'] ?? '0';
+                            final lastAt = c['last_order_at'] ?? '';
+                            final extraPhones = (c['phones'] ?? '').trim();
                             return Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
@@ -1804,16 +1994,25 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(c['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                                  const SizedBox(height: 4),
-                                  Text("الهاتف: ${c['phone'] ?? '-'}"),
-                                  Text("المحافظة: ${c['governorate'] ?? '-'}"),
-                                  Text("العنوان: ${(c['address'] ?? '').isEmpty ? '-' : c['address']!}"),
-                                  Text("عدد الأوردرات: $cnt"),
-                                ],
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () async {
+                                  await editCustomer(c);
+                                  applyFilter(setStateDialog);
+                                },
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(c['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                    const SizedBox(height: 4),
+                                    Text("الهاتف: ${c['phone'] ?? '-'}"),
+                                    if (extraPhones.isNotEmpty) Text("أرقام إضافية: $extraPhones"),
+                                    Text("المحافظة: ${c['governorate'] ?? '-'}"),
+                                    Text("العنوان: ${(c['address'] ?? '').isEmpty ? '-' : c['address']!}"),
+                                    Text("عدد الأوردرات: $cnt"),
+                                    if (lastAt.isNotEmpty) Text("آخر أوردر: ${formatIso(lastAt)}"),
+                                  ],
+                                ),
                               ),
                             );
                           },
@@ -1823,6 +2022,13 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
             ),
           ),
           actions: [
+            TextButton(
+              onPressed: () async {
+                await normalizeOrders();
+                applyFilter(setStateDialog);
+              },
+              child: const Text("تنظيف الأرقام"),
+            ),
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("إغلاق")),
           ],
         ),
