@@ -21,28 +21,25 @@ app.use((req, res, next) => {
   next();
 });
 
-const toolSchema = {
-  type: "function",
-  name: "route_action",
-  description: "Route Arabic inventory/order command to one strict action object.",
-  parameters: {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      action: {
-        type: "string",
-        enum: ["delete_order", "cancel_order", "add_stock", "check_stock", "unknown"],
-      },
-      name: { type: ["string", "null"] },
-      governorate: { type: ["string", "null"] },
-      model: { type: "string", enum: ["15", "16", "17"] },
-      color: { type: ["string", "null"] },
-      count: { type: ["integer", "null"], minimum: 1 },
-      message: { type: ["string", "null"] },
-    },
-    required: ["action", "name", "governorate", "model", "color", "count", "message"],
-  },
-};
+const ACTION_PROMPT = `
+You are an Arabic inventory/order command router.
+Return ONLY valid JSON object with these fields:
+{
+  "action": "delete_order|cancel_order|add_stock|check_stock|unknown",
+  "name": string|null,
+  "governorate": string|null,
+  "model": "15"|"16"|"17"|null,
+  "color": string|null,
+  "count": number|null,
+  "message": string|null
+}
+Rules:
+- delete_order/cancel_order: fill name (and governorate if present), other fields null.
+- add_stock: fill model,color,count, others null.
+- check_stock: action only, all others null.
+- If unclear: action=unknown and message in Arabic.
+- No markdown, no explanation, JSON only.
+`.trim();
 
 function normalizeAction(payload) {
   const action = payload?.action;
@@ -92,13 +89,10 @@ app.post("/ai/command", async (req, res) => {
         input: [
           {
             role: "system",
-            content:
-              "You are an inventory/order assistant. Always call the function and do not output free text.",
+            content: ACTION_PROMPT,
           },
           { role: "user", content: text },
         ],
-        tools: [toolSchema],
-        tool_choice: { type: "function", name: "route_action" },
       }),
     });
 
@@ -108,19 +102,20 @@ app.post("/ai/command", async (req, res) => {
     }
 
     const data = await response.json();
-    const functionCall = (data.output || []).find(
-      (item) => item.type === "function_call" && item.name === "route_action"
-    );
-
-    if (!functionCall?.arguments) {
-      return res.json({ action: "unknown", message: "No function call arguments returned" });
+    const outputText = extractOutputText(data);
+    if (!outputText) {
+      return res.json({ action: "unknown", message: "No model output text returned" });
     }
 
     let parsed;
     try {
-      parsed = JSON.parse(functionCall.arguments);
+      parsed = JSON.parse(outputText);
     } catch {
-      return res.json({ action: "unknown", message: "Invalid function arguments JSON" });
+      const recovered = tryExtractJsonObject(outputText);
+      if (!recovered) {
+        return res.json({ action: "unknown", message: "Invalid JSON from model" });
+      }
+      parsed = recovered;
     }
 
     return res.json(normalizeAction(parsed));
@@ -128,6 +123,35 @@ app.post("/ai/command", async (req, res) => {
     return res.status(500).json({ action: "unknown", message: error.message || "Server error" });
   }
 });
+
+function extractOutputText(data) {
+  if (typeof data?.output_text === "string" && data.output_text.trim()) {
+    return data.output_text.trim();
+  }
+
+  const chunks = [];
+  for (const item of data?.output || []) {
+    for (const c of item?.content || []) {
+      if (c?.type === "output_text" && typeof c?.text === "string") {
+        chunks.push(c.text);
+      }
+    }
+  }
+  const joined = chunks.join("\n").trim();
+  return joined || null;
+}
+
+function tryExtractJsonObject(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+  const candidate = text.slice(start, end + 1);
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
+}
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`AI proxy running on http://localhost:${PORT}`);
