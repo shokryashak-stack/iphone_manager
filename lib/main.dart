@@ -8,6 +8,7 @@ import 'package:excel/excel.dart' hide Border;
 import 'package:http/http.dart' as http;
 import 'config.dart';
 import 'ai_assistant_screen.dart';
+import 'order_review_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -818,7 +819,28 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   Future<String> _bulkImportOrdersAction(List<Map<String, dynamic>> ordersRaw) async {
     final incoming = ordersRaw.map(_dynamicOrderToStringMap).toList();
-    return _applyIncomingOrdersToHomeStock(incoming);
+    if (!mounted) return 'تم الإلغاء.';
+
+    final reviewed = await Navigator.of(context).push<List<Map<String, String>>>(
+      MaterialPageRoute(
+        builder: (_) => OrderReviewPage(
+          orders: incoming,
+          modelColors: _stockModels,
+          homeStock: homeColorStock,
+        ),
+      ),
+    );
+
+    if (reviewed == null) return 'تم الإلغاء.';
+
+    for (final o in reviewed) {
+      final price = _parseIntSafe(o['price'] ?? '');
+      final shipping = _parseIntSafe(o['shipping'] ?? '0');
+      final discount = _parseIntSafe(o['discount'] ?? '0');
+      final codTotal = price > 0 ? (price - discount + shipping) : 0;
+      if (codTotal > 0) o['cod_total'] = codTotal.toString();
+    }
+    return _applyIncomingOrdersToHomeStock(reviewed, logSource: 'استيراد واتساب (مراجعة)');
   }
 
   void _openAiAssistant({int initialTabIndex = 0}) {
