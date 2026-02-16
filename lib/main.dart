@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'config.dart';
 import 'ai_assistant_screen.dart';
 import 'order_review_page.dart';
+import 'customers_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -279,6 +280,224 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       }
     }
     return list.toSet().toList();
+  }
+
+  String _customerKeyFromCustomer(Map<String, String> c) {
+    final phone = _normalizePhone(c['phone'] ?? '');
+    if (phone.isNotEmpty) return 'p:$phone';
+    final addr = _normalizeArabicName(c['address'] ?? '');
+    if (addr.isNotEmpty) return 'a:$addr';
+    return 'n:${_normalizeArabicName(c['name'] ?? '')}|g:${_normalizeArabicName(c['governorate'] ?? '')}';
+  }
+
+  bool _orderMatchesCustomer(Map<String, String> order, Map<String, String> customer) {
+    final cPhone = _normalizePhone(customer['phone'] ?? '');
+    final cPhones = (customer['phones'] ?? '').split(',').map(_normalizePhone).where((x) => x.isNotEmpty).toSet();
+    if (cPhone.isNotEmpty || cPhones.isNotEmpty) {
+      final op = _normalizePhone(order['phone'] ?? '');
+      final oPhones = (order['phones'] ?? '').split(',').map(_normalizePhone).where((x) => x.isNotEmpty).toSet();
+      if (cPhone.isNotEmpty && (op == cPhone || oPhones.contains(cPhone))) return true;
+      for (final p in cPhones) {
+        if (p.isNotEmpty && (op == p || oPhones.contains(p))) return true;
+      }
+    }
+
+    final cAddr = _normalizeArabicName(customer['address'] ?? '');
+    if (cAddr.isNotEmpty) {
+      final oa = _normalizeArabicName(order['address'] ?? '');
+      if (oa.isNotEmpty && (oa.contains(cAddr) || cAddr.contains(oa))) return true;
+    }
+
+    final cName = _normalizeArabicName(customer['name'] ?? '');
+    if (cName.isNotEmpty) {
+      final on = _normalizeArabicName(order['name'] ?? '');
+      if (on.isNotEmpty && (on == cName || on.contains(cName) || cName.contains(on))) {
+        final cGov = _normalizeArabicName(customer['governorate'] ?? '');
+        if (cGov.isEmpty) return true;
+        final og = _normalizeArabicName(order['governorate'] ?? '');
+        return og.isNotEmpty && (og.contains(cGov) || cGov.contains(og));
+      }
+    }
+
+    return false;
+  }
+
+  List<Map<String, String>> _customersSnapshot() => customers.map((e) => Map<String, String>.from(e)).toList();
+
+  Future<int> _normalizeOrderPhonesAndRebuildCustomers() async {
+    int changed = 0;
+    for (final o in orders) {
+      final beforePhone = o['phone'] ?? '';
+      final beforePhones = o['phones'] ?? '';
+
+      final list = <String>[];
+      final p = _normalizePhone(beforePhone);
+      if (p.isNotEmpty) list.add(p);
+      if (beforePhones.trim().isNotEmpty) {
+        for (final raw in beforePhones.split(',')) {
+          final n = _normalizePhone(raw);
+          if (n.isNotEmpty) list.add(n);
+        }
+      }
+      final unique = list.toSet().toList();
+      final nextPhone = unique.isNotEmpty ? unique.first : '';
+      final nextPhones = unique.length > 1 ? unique.join(',') : '';
+
+      if (nextPhone != _normalizePhone(beforePhone) || nextPhones != beforePhones.trim()) {
+        o['phone'] = nextPhone;
+        if (nextPhones.isEmpty) {
+          o.remove('phones');
+        } else {
+          o['phones'] = nextPhones;
+        }
+        changed++;
+      }
+    }
+
+    _rebuildCustomersFromOrders();
+    await _saveData();
+    return changed;
+  }
+
+  Future<int?> _editCustomerDialogAndApply(Map<String, String> customer) async {
+    final nameCtrl = TextEditingController(text: customer['name'] ?? '');
+    final phoneCtrl = TextEditingController(text: customer['phone'] ?? '');
+    final govCtrl = TextEditingController(text: customer['governorate'] ?? '');
+    final addrCtrl = TextEditingController(text: customer['address'] ?? '');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: _dialogBg(context),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
+        title: const Text("تعديل بيانات عميل", textAlign: TextAlign.right),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: nameCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "الاسم")),
+              const SizedBox(height: 8),
+              TextField(controller: phoneCtrl, keyboardType: TextInputType.phone, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "الهاتف")),
+              const SizedBox(height: 8),
+              TextField(controller: govCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "المحافظة")),
+              const SizedBox(height: 8),
+              TextField(controller: addrCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "العنوان")),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("إلغاء")),
+          ElevatedButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("حفظ")),
+        ],
+      ),
+    );
+
+    if (saved != true) return null;
+
+    final newName = nameCtrl.text.trim();
+    final newPhone = _normalizePhone(phoneCtrl.text);
+    final newGov = govCtrl.text.trim();
+    final newAddr = addrCtrl.text.trim();
+
+    int updated = 0;
+    for (final o in orders) {
+      if (!_orderMatchesCustomer(o, customer)) continue;
+
+      if (newName.isNotEmpty) o['name'] = newName;
+      if (newGov.isNotEmpty) o['governorate'] = newGov;
+      if (newAddr.isNotEmpty) o['address'] = newAddr;
+
+      if (newPhone.isNotEmpty) {
+        final extras = <String>{};
+        final op = _normalizePhone(o['phone'] ?? '');
+        if (op.isNotEmpty) extras.add(op);
+        final beforeExtras = (o['phones'] ?? '').split(',').map(_normalizePhone).where((x) => x.isNotEmpty);
+        extras.addAll(beforeExtras);
+        extras.add(newPhone);
+
+        o['phone'] = newPhone;
+        final list = extras.toList();
+        list.removeWhere((x) => x == newPhone);
+        if (list.isEmpty) {
+          o.remove('phones');
+        } else {
+          o['phones'] = list.join(',');
+        }
+      }
+
+      updated++;
+    }
+
+    _rebuildCustomersFromOrders();
+    await _saveData();
+    return updated;
+  }
+
+  Future<int?> _deleteCustomerWithConfirm(Map<String, String> customer) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: _dialogBg(context),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
+        title: const Text("مسح عميل", textAlign: TextAlign.right),
+        content: Text(
+          "ده هيمسح كل أوردرات العميل ده من التطبيق.\n\nالعميل: ${customer['name'] ?? '-'}\nالهاتف: ${customer['phone'] ?? '-'}\n\nمتأكد؟",
+          textAlign: TextAlign.right,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("إلغاء")),
+          TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("مسح", style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirm != true) return null;
+
+    final before = orders.length;
+    orders.removeWhere((o) => _orderMatchesCustomer(o, customer));
+    final removed = before - orders.length;
+
+    _rebuildCustomersFromOrders();
+    await _saveData();
+    return removed;
+  }
+
+  Future<int?> _deleteSelectedCustomersByKeys(Set<String> keys) async {
+    if (keys.isEmpty) return 0;
+    int removedOrders = 0;
+    final keysNow = keys.toList();
+    for (final k in keysNow) {
+      final customer = customers.firstWhere(
+        (c) => _customerKeyFromCustomer(c) == k,
+        orElse: () => <String, String>{},
+      );
+      if (customer.isEmpty) continue;
+      final before = orders.length;
+      orders.removeWhere((o) => _orderMatchesCustomer(o, customer));
+      removedOrders += before - orders.length;
+    }
+
+    _rebuildCustomersFromOrders();
+    await _saveData();
+    return removedOrders;
+  }
+
+  void _openCustomersPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CustomersPage(
+          getCustomers: _customersSnapshot,
+          customerKey: _customerKeyFromCustomer,
+          normalizePhones: _normalizeOrderPhonesAndRebuildCustomers,
+          editCustomer: _editCustomerDialogAndApply,
+          deleteCustomer: _deleteCustomerWithConfirm,
+          deleteSelectedCustomers: _deleteSelectedCustomersByKeys,
+        ),
+      ),
+    );
   }
 
   String _customerKeyForOrder(Map<String, String> order) {
@@ -1652,7 +1871,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           _drawerTile(icon: Icons.home_work_rounded, title: "مخزن البيت", onTap: () { Navigator.pop(context); _openHomeWarehousePage(); }),
           _drawerTile(icon: Icons.history_edu_rounded, title: "سجل الحركات", onTap: () { Navigator.pop(context); _showLog(); }),
           _drawerTile(icon: Icons.playlist_add_check_rounded, title: "استيراد أوردرات واتساب", onTap: () { Navigator.pop(context); _openAiAssistant(initialTabIndex: 1); }),
-          _drawerTile(icon: Icons.people_alt_rounded, title: "داتا العملاء", onTap: () { Navigator.pop(context); _showCustomersDatabase(); }),
+          _drawerTile(icon: Icons.people_alt_rounded, title: "داتا العملاء", onTap: () { Navigator.pop(context); _openCustomersPage(); }),
           _drawerTile(icon: Icons.smart_toy_rounded, title: "مساعد AI", onTap: () { Navigator.pop(context); _openAiAssistant(); }),
           _drawerTile(icon: Icons.delete_sweep_rounded, title: "مسح كل المخزون", danger: true, onTap: () { Navigator.pop(context); _confirmClearStock(); }),
           const SizedBox(height: 8),
