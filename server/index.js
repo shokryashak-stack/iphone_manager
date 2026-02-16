@@ -57,6 +57,92 @@ Output rules:
 - For unknown, message must be short Arabic text.
 `.trim();
 
+function normalizeSpaces(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+function detectModel(text) {
+  if (/(?:^|\s)(17|١٧)(?:\s|$)/.test(text)) return "17";
+  if (/(?:^|\s)(16|١٦)(?:\s|$)/.test(text)) return "16";
+  if (/(?:^|\s)(15|١٥)(?:\s|$)/.test(text)) return "15";
+  return null;
+}
+
+function detectColor(text) {
+  const colors = [
+    "سلفر",
+    "فضي",
+    "اسود",
+    "أسود",
+    "ازرق",
+    "أزرق",
+    "دهبي",
+    "ذهبي",
+    "برتقالي",
+    "تيتانيوم",
+    "كحلي",
+    "ابيض",
+    "أبيض",
+  ];
+  const found = colors.find((c) => text.includes(c));
+  return found ? found.replace("أ", "ا") : null;
+}
+
+function detectCount(text) {
+  const m = text.match(/(\d+)/);
+  if (!m) return 1;
+  const n = Number.parseInt(m[1], 10);
+  return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
+function parseRuleBased(textRaw) {
+  const text = normalizeSpaces(textRaw);
+  if (!text) return { action: "unknown", message: "اكتب أمر أولًا" };
+
+  const lower = text.toLowerCase();
+  if (text.includes("المخزن") || text.includes("الجرد") || lower.includes("check stock")) {
+    return { action: "check_stock" };
+  }
+
+  if (text.includes("امسح") || text.includes("احذف") || text.includes("حذف") || text.includes("شيل")) {
+    const name = normalizeSpaces(
+      text
+        .replace(/.*(اوردر|أوردر|طلب|عميل)/, "")
+        .replace(/.*(امسح|احذف|حذف|شيل)/, "")
+    );
+    return { action: "delete_order", name };
+  }
+
+  if (text.includes("الغي") || text.includes("إلغي") || lower.includes("cancel")) {
+    const name = normalizeSpaces(
+      text
+        .replace(/.*(اوردر|أوردر|طلب|عميل)/, "")
+        .replace(/.*(الغي|إلغي|cancel)/i, "")
+    );
+    return { action: "cancel_order", name };
+  }
+
+  if (
+    text.includes("زود") ||
+    text.includes("ضيف") ||
+    text.includes("اضف") ||
+    text.includes("أضف") ||
+    lower.includes("add stock")
+  ) {
+    const model = detectModel(text);
+    const color = detectColor(text);
+    if (!model || !color) {
+      return { action: "unknown", message: "حدد الموديل واللون. مثال: زود 2 ايفون 16 سلفر" };
+    }
+    return { action: "add_stock", model, color, count: detectCount(text) };
+  }
+
+  return {
+    action: "unknown",
+    message: "الأمر غير واضح. مثال: امسح أوردر محمد أو زود 2 ايفون 16 سلفر",
+  };
+}
+
 let geminiAi = null;
 function getGeminiAi() {
   if (!GEMINI_API_KEY) return null;
@@ -162,15 +248,19 @@ app.post("/ai/command", async (req, res) => {
       return res.status(400).json({ action: "unknown", message: "text is required" });
     }
 
-    const raw = await generateWithFallbackModels(
-      `${ROUTER_PROMPT}\n\nUser command: ${text}`
-    );
-    const parsed = tryParseJson(raw);
-    if (!parsed) {
-      return res.json({ action: "unknown", message: "رد غير صالح من Gemini" });
+    try {
+      const raw = await generateWithFallbackModels(
+        `${ROUTER_PROMPT}\n\nUser command: ${text}`
+      );
+      const parsed = tryParseJson(raw);
+      if (!parsed) {
+        return res.json(parseRuleBased(text));
+      }
+      return res.json(normalizeAction(parsed));
+    } catch (aiError) {
+      console.log("Gemini fallback to rule-based:", aiError?.message || aiError);
+      return res.json(parseRuleBased(text));
     }
-
-    return res.json(normalizeAction(parsed));
   } catch (error) {
     return res.status(500).json({
       action: "unknown",
