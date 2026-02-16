@@ -295,7 +295,7 @@ function normalizeColorNameAny(colorRaw) {
   if (s.includes("اسود") || s.includes("أسود") || s.includes("بلاك") || s.includes("black")) return "اسود";
   if (s.includes("ازرق") || s.includes("أزرق") || s.includes("blue")) return "ازرق";
   if (s.includes("دهبي") || s.includes("ذهبي") || s.includes("جولد") || s.includes("gold")) return "دهبي";
-  if (s.includes("برتقالي") || s.includes("اورنج") || s.includes("أورنج") || s.includes("orange")) return "برتقالي";
+  if (s.includes("برتقالي") || s.includes("اورنج") || s.includes("اورانج") || s.includes("أورنج") || s.includes("orange")) return "برتقالي";
   if (s.includes("كحلي") || s.includes("navy")) return "كحلي";
   if (s.includes("تيتانيوم") || s.includes("طبيعي") || s.includes("ناتشورال") || s.includes("natural")) return "تيتانيوم";
   return "";

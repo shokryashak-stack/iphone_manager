@@ -398,18 +398,33 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   Future<String> _applyIncomingOrdersToHomeStock(List<Map<String, String>> incoming, {String logSource = 'استيراد واتساب AI'}) async {
     if (incoming.isEmpty) return 'لم يتم العثور على أوردرات في النص.';
 
+    String normalizeColor(String colorRaw) {
+      final c = _normalizeArabicName(colorRaw);
+      if (c.isEmpty) return '';
+      if (c.contains('سلفر') || c.contains('فضي') || c.contains('ابيض') || c.contains('أبيض') || c.contains('silver') || c.contains('white')) return 'سلفر';
+      if (c.contains('اسود') || c.contains('أسود') || c.contains('بلاك') || c.contains('black')) return 'اسود';
+      if (c.contains('ازرق') || c.contains('أزرق') || c.contains('blue')) return 'ازرق';
+      if (c.contains('دهبي') || c.contains('ذهبي') || c.contains('جولد') || c.contains('gold')) return 'دهبي';
+      if (c.contains('برتقالي') || c.contains('اورنج') || c.contains('اورانج') || c.contains('أورنج') || c.contains('orange')) return 'برتقالي';
+      if (c.contains('كحلي') || c.contains('navy')) return 'كحلي';
+      if (c.contains('تيتانيوم') || c.contains('طبيعي') || c.contains('ناتشورال') || c.contains('natural')) return 'تيتانيوم';
+      return colorRaw.trim();
+    }
+
     final tempHome = _cloneColorStock(homeColorStock);
     final stockErrors = <String>[];
     final repeatHints = <String>[];
     final deductedSummary = _createDefaultColorStock();
 
     for (final o in incoming) {
-      final modelKey = (o['model'] ?? '').trim();
-      final colorKey = (o['color'] ?? '').trim();
+      final modelKeyRaw = (o['model'] ?? '').trim();
+      final modelKey = _normalizeModelFromAi(modelKeyRaw);
+      final colorKeyRaw = (o['color'] ?? '').trim();
+      final colorKey = normalizeColor(colorKeyRaw);
       final qty = int.tryParse((o['count'] ?? o['qty'] ?? '1').toString()) ?? 1;
       final safeQty = qty <= 0 ? 1 : qty;
 
-      if (modelKey.isEmpty || colorKey.isEmpty || !_stockModels.containsKey(modelKey)) {
+      if (modelKey.isEmpty || colorKey.isEmpty || !_stockModels.containsKey(modelKey) || !_stockModels[modelKey]!.contains(colorKey)) {
         stockErrors.add("❌ الـ AI لم يستطع استنتاج الموديل/اللون للعميل: ${o['name'] ?? '-'}");
         continue;
       }
