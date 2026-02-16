@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -450,6 +451,25 @@ function normalizeParsedOrder(obj) {
   const shipping = Number.isFinite(shippingN) ? shippingN : 0;
   const codTotal = Math.max(0, price - discount + shipping);
 
+  const missing = [];
+  if (!name) missing.push("name");
+  if (!phone) missing.push("phone");
+  if (!governorate) missing.push("governorate");
+  if (!address) missing.push("address");
+  if (!model) missing.push("model");
+  if (!color) missing.push("color");
+  if (!price) missing.push("price");
+
+  let confidence = 0;
+  if (model) confidence += 0.28;
+  if (color) confidence += 0.22;
+  if (phone) confidence += 0.18;
+  if (name) confidence += 0.12;
+  if (governorate) confidence += 0.08;
+  if (address) confidence += 0.08;
+  if (price) confidence += 0.04;
+  confidence = Math.max(0, Math.min(1, Number(confidence.toFixed(2))));
+
   return {
     name,
     governorate,
@@ -463,6 +483,8 @@ function normalizeParsedOrder(obj) {
     shipping: String(shipping || 0),
     cod_total: codTotal ? String(codTotal) : "",
     notes: normalizeSpaces(obj?.notes),
+    confidence,
+    missing_fields: missing,
     status: "shipped",
     created_at: new Date().toISOString(),
   };
@@ -496,12 +518,35 @@ app.post("/ai/command", async (req, res) => {
   }
 });
 
+const PARSE_CACHE_TTL_MS = 5 * 60 * 1000;
+const parseOrdersCache = new Map(); // key -> { at:number, value:any }
+function cacheKeyForText(text) {
+  return crypto.createHash("sha256").update(String(text || "")).digest("hex");
+}
+function getCachedParse(text) {
+  const key = cacheKeyForText(text);
+  const entry = parseOrdersCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.at > PARSE_CACHE_TTL_MS) {
+    parseOrdersCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+function setCachedParse(text, value) {
+  const key = cacheKeyForText(text);
+  parseOrdersCache.set(key, { at: Date.now(), value });
+}
+
 app.post("/ai/parse_orders", async (req, res) => {
   try {
     const text = String(req.body?.text || "").trim();
     if (!text) {
       return res.status(400).json({ error: "text is required" });
     }
+
+    const cached = getCachedParse(text);
+    if (cached) return res.json(cached);
 
     // If we have Gemini configured, let it do extraction; otherwise fallback to rule-based parsing.
     try {
@@ -529,6 +574,7 @@ ${text}
       const arr = tryParseJsonArray(raw);
       if (arr && arr.length) {
         const normalized = arr.map(normalizeParsedOrder).filter((o) => o.name || o.phone || o.address);
+        setCachedParse(text, normalized);
         return res.json(normalized);
       }
     } catch (aiError) {
@@ -541,6 +587,7 @@ ${text}
       .map(normalizeParsedOrder)
       .filter((o) => o.name || o.phone || o.address);
 
+    setCachedParse(text, ruleParsed);
     return res.json(ruleParsed);
   } catch (error) {
     return res.status(500).json({

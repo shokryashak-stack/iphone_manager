@@ -439,6 +439,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       'discount': s(e['discount']).isNotEmpty ? s(e['discount']) : '0',
       'cod_total': s(e['cod_total']),
       'notes': s(e['notes']),
+      'confidence': s(e['confidence']),
+      'missing_fields': (e['missing_fields'] is List)
+          ? (e['missing_fields'] as List).map((x) => s(x)).where((x) => x.isNotEmpty).join(',')
+          : s(e['missing_fields']),
       'status': s(e['status']).isNotEmpty ? s(e['status']) : 'shipped',
       'created_at': s(e['created_at']).isNotEmpty ? s(e['created_at']) : DateTime.now().toIso8601String(),
     };

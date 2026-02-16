@@ -30,6 +30,23 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
   void initState() {
     super.initState();
     _orders = widget.orders.map((e) => Map<String, String>.from(e)).toList();
+    _orders.sort((a, b) => _confidenceOf(a).compareTo(_confidenceOf(b)));
+  }
+
+  double _confidenceOf(Map<String, String> o) {
+    final s = (o['confidence'] ?? '').trim();
+    final v = double.tryParse(s);
+    if (v == null) return 0;
+    if (v.isNaN) return 0;
+    if (v < 0) return 0;
+    if (v > 1) return 1;
+    return v;
+  }
+
+  List<String> _missingOf(Map<String, String> o) {
+    final s = (o['missing_fields'] ?? '').trim();
+    if (s.isEmpty) return const <String>[];
+    return s.split(',').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
   }
 
   Map<String, Map<String, int>> _requiredCounts() {
@@ -122,6 +139,8 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                 final price = (o['price'] ?? '').trim();
                 final shipping = (o['shipping'] ?? '0').trim();
                 final discount = (o['discount'] ?? '0').trim();
+                final confidence = _confidenceOf(o);
+                final missing = _missingOf(o);
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
@@ -136,6 +155,27 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                     children: [
                       Row(
                         children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: confidence >= 0.75
+                                  ? Colors.green.withValues(alpha: 0.18)
+                                  : (confidence >= 0.5 ? Colors.orange.withValues(alpha: 0.18) : Colors.red.withValues(alpha: 0.18)),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: confidence >= 0.75
+                                    ? Colors.green.withValues(alpha: 0.25)
+                                    : (confidence >= 0.5 ? Colors.orange.withValues(alpha: 0.25) : Colors.red.withValues(alpha: 0.25)),
+                              ),
+                            ),
+                            child: Text(
+                              "ثقة ${(confidence * 100).round()}%",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: confidence >= 0.75 ? Colors.green : (confidence >= 0.5 ? Colors.orange : Colors.red),
+                              ),
+                            ),
+                          ),
                           IconButton(
                             onPressed: () => setState(() => _orders.removeAt(index)),
                             icon: const Icon(Icons.delete_outline),
@@ -152,6 +192,14 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                           ),
                         ],
                       ),
+                      if (missing.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          "ناقص: ${missing.join('، ')}",
+                          textAlign: TextAlign.right,
+                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w600),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       Row(
                         children: [
