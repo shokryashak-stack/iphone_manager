@@ -1792,6 +1792,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     final searchCtrl = TextEditingController();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     List<Map<String, String>> filtered = List<Map<String, String>>.from(customers);
+    bool selectionMode = false;
+    final selectedKeys = <String>{};
 
     String formatIso(String iso) {
       try {
@@ -1800,6 +1802,46 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       } catch (_) {
         return iso;
       }
+    }
+
+    String customerKey(Map<String, String> c) {
+      final phone = _normalizePhone(c['phone'] ?? '');
+      if (phone.isNotEmpty) return 'p:$phone';
+      final addr = _normalizeArabicName(c['address'] ?? '');
+      if (addr.isNotEmpty) return 'a:$addr';
+      return 'n:${_normalizeArabicName(c['name'] ?? '')}|g:${_normalizeArabicName(c['governorate'] ?? '')}';
+    }
+
+    bool orderMatchesCustomer(Map<String, String> o, Map<String, String> c) {
+      final cPhone = _normalizePhone(c['phone'] ?? '');
+      final cPhones = (c['phones'] ?? '').split(',').map(_normalizePhone).where((x) => x.isNotEmpty).toSet();
+      if (cPhone.isNotEmpty || cPhones.isNotEmpty) {
+        final op = _normalizePhone(o['phone'] ?? '');
+        final oPhones = (o['phones'] ?? '').split(',').map(_normalizePhone).where((x) => x.isNotEmpty).toSet();
+        if (cPhone.isNotEmpty && (op == cPhone || oPhones.contains(cPhone))) return true;
+        for (final p in cPhones) {
+          if (p.isNotEmpty && (op == p || oPhones.contains(p))) return true;
+        }
+      }
+
+      final cAddr = _normalizeArabicName(c['address'] ?? '');
+      if (cAddr.isNotEmpty) {
+        final oa = _normalizeArabicName(o['address'] ?? '');
+        if (oa.isNotEmpty && (oa.contains(cAddr) || cAddr.contains(oa))) return true;
+      }
+
+      final cName = _normalizeArabicName(c['name'] ?? '');
+      if (cName.isNotEmpty) {
+        final on = _normalizeArabicName(o['name'] ?? '');
+        if (on.isNotEmpty && (on == cName || on.contains(cName) || cName.contains(on))) {
+          final cGov = _normalizeArabicName(c['governorate'] ?? '');
+          if (cGov.isEmpty) return true;
+          final og = _normalizeArabicName(o['governorate'] ?? '');
+          return og.isNotEmpty && (og.contains(cGov) || cGov.contains(og));
+        }
+      }
+
+      return false;
     }
 
     Future<void> normalizeOrders() async {
@@ -1836,6 +1878,86 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       await _saveData();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("تم تنظيف أرقام الهواتف (تحديث $changed أوردر)")));
+    }
+
+    Future<void> deleteCustomer(Map<String, String> customer) async {
+      final key = customerKey(customer);
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dctx) => AlertDialog(
+          backgroundColor: _dialogBg(context),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
+          title: const Text("مسح عميل", textAlign: TextAlign.right),
+          content: Text(
+            "ده هيمسح كل أوردرات العميل ده من التطبيق.\n\nالعميل: ${customer['name'] ?? '-'}\nالهاتف: ${customer['phone'] ?? '-'}\n\nمتأكد؟",
+            textAlign: TextAlign.right,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("إلغاء")),
+            TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("مسح", style: TextStyle(color: Colors.red))),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+
+      final before = orders.length;
+      orders.removeWhere((o) => orderMatchesCustomer(o, customer));
+      final removed = before - orders.length;
+
+      _rebuildCustomersFromOrders();
+      await _saveData();
+      selectedKeys.remove(key);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("تم مسح $removed أوردر")));
+    }
+
+    Future<void> deleteSelectedCustomers(StateSetter setStateDialog) async {
+      if (selectedKeys.isEmpty) return;
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dctx) => AlertDialog(
+          backgroundColor: _dialogBg(context),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
+          title: const Text("مسح المحدد", textAlign: TextAlign.right),
+          content: Text(
+            "ده هيمسح كل أوردرات العملاء المحددين (${selectedKeys.length}).\nمتأكد؟",
+            textAlign: TextAlign.right,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("إلغاء")),
+            TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("مسح", style: TextStyle(color: Colors.red))),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+
+      int removedOrders = 0;
+      final keysNow = selectedKeys.toList();
+      for (final k in keysNow) {
+        final customer = customers.firstWhere(
+          (c) => customerKey(c) == k,
+          orElse: () => <String, String>{},
+        );
+        if (customer.isEmpty) continue;
+        final before = orders.length;
+        orders.removeWhere((o) => orderMatchesCustomer(o, customer));
+        removedOrders += before - orders.length;
+      }
+
+      _rebuildCustomersFromOrders();
+      await _saveData();
+
+      setStateDialog(() {
+        selectedKeys.clear();
+        selectionMode = false;
+        filtered = List<Map<String, String>>.from(customers);
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("تم مسح $removedOrders أوردر")));
     }
 
     Future<void> editCustomer(Map<String, String> customer) async {
@@ -1886,21 +2008,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
       int updated = 0;
       for (final o in orders) {
-        bool match = false;
-        if (oldPhone.isNotEmpty) {
-          final op = _normalizePhone(o['phone'] ?? '');
-          final extras = (o['phones'] ?? '').split(',').map(_normalizePhone).toSet();
-          match = op == oldPhone || extras.contains(oldPhone);
-        } else if (oldAddr.isNotEmpty) {
-          final oa = _normalizeArabicName(o['address'] ?? '');
-          match = oa.isNotEmpty && (oa.contains(oldAddr) || oldAddr.contains(oa));
-        } else {
-          final on = _normalizeArabicName(o['name'] ?? '');
-          final og = _normalizeArabicName(o['governorate'] ?? '');
-          match = on.isNotEmpty && on == oldName && (oldGov.isEmpty || og == oldGov);
-        }
-
-        if (!match) continue;
+        if (!orderMatchesCustomer(o, customer)) continue;
 
         if (newName.isNotEmpty) o['name'] = newName;
         if (newGov.isNotEmpty) o['governorate'] = newGov;
@@ -1957,7 +2065,43 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           backgroundColor: _dialogBg(context),
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-          title: const Text("داتا العملاء", textAlign: TextAlign.right),
+          title: Row(
+            children: [
+              IconButton(
+                tooltip: selectionMode ? "إلغاء التحديد" : "تحديد",
+                onPressed: () {
+                  setStateDialog(() {
+                    selectionMode = !selectionMode;
+                    if (!selectionMode) selectedKeys.clear();
+                  });
+                },
+                icon: Icon(selectionMode ? Icons.check_box_outline_blank_rounded : Icons.checklist_rounded),
+              ),
+              if (selectionMode)
+                IconButton(
+                  tooltip: "تحديد الكل",
+                  onPressed: () {
+                    setStateDialog(() {
+                      for (final c in filtered) {
+                        selectedKeys.add(customerKey(c));
+                      }
+                    });
+                  },
+                  icon: const Icon(Icons.select_all_rounded),
+                ),
+              if (selectionMode)
+                IconButton(
+                  tooltip: "مسح المحدد",
+                  onPressed: selectedKeys.isEmpty ? null : () => deleteSelectedCustomers(setStateDialog),
+                  icon: Icon(Icons.delete_sweep_rounded, color: selectedKeys.isEmpty ? null : Colors.red),
+                ),
+              const Spacer(),
+              const Expanded(
+                flex: 3,
+                child: Text("داتا العملاء", textAlign: TextAlign.right),
+              ),
+            ],
+          ),
           content: SizedBox(
             width: double.maxFinite,
             height: 480,
@@ -1970,6 +2114,16 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                   decoration: InputDecoration(
                     hintText: "ابحث بالاسم أو الرقم أو العنوان",
                     prefixIcon: const Icon(Icons.search),
+                    suffixIcon: searchCtrl.text.trim().isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: () {
+                              searchCtrl.clear();
+                              applyFilter(setStateDialog);
+                              FocusScope.of(context).unfocus();
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
                     filled: true,
                     fillColor: isDark ? const Color(0xFF1A1A1A) : Colors.grey.shade100,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -1987,6 +2141,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                             final cnt = c['orders_count'] ?? '0';
                             final lastAt = c['last_order_at'] ?? '';
                             final extraPhones = (c['phones'] ?? '').trim();
+                            final k = customerKey(c);
+                            final selected = selectedKeys.contains(k);
                             return Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
@@ -1997,13 +2153,57 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(12),
                                 onTap: () async {
+                                  if (selectionMode) {
+                                    setStateDialog(() {
+                                      if (selected) {
+                                        selectedKeys.remove(k);
+                                      } else {
+                                        selectedKeys.add(k);
+                                      }
+                                    });
+                                    return;
+                                  }
                                   await editCustomer(c);
                                   applyFilter(setStateDialog);
                                 },
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text(c['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                    Row(
+                                      children: [
+                                        if (selectionMode)
+                                          Checkbox(
+                                            value: selected,
+                                            onChanged: (v) {
+                                              setStateDialog(() {
+                                                if (v == true) {
+                                                  selectedKeys.add(k);
+                                                } else {
+                                                  selectedKeys.remove(k);
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        if (!selectionMode)
+                                          IconButton(
+                                            tooltip: "مسح العميل",
+                                            onPressed: () async {
+                                              await deleteCustomer(c);
+                                              applyFilter(setStateDialog);
+                                            },
+                                            icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                          ),
+                                        const Spacer(),
+                                        Expanded(
+                                          flex: 4,
+                                          child: Text(
+                                            c['name'] ?? '-',
+                                            textAlign: TextAlign.right,
+                                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                     const SizedBox(height: 4),
                                     Text("الهاتف: ${c['phone'] ?? '-'}"),
                                     if (extraPhones.isNotEmpty) Text("أرقام إضافية: $extraPhones"),
