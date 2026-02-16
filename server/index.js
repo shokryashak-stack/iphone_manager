@@ -25,7 +25,6 @@ const toolSchema = {
   type: "function",
   name: "route_action",
   description: "Route Arabic inventory/order command to one strict action object.",
-  strict: true,
   parameters: {
     type: "object",
     additionalProperties: false,
