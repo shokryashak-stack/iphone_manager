@@ -1,5 +1,6 @@
 ﻿import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
@@ -96,6 +97,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   final List<_UndoSnapshot> _undoStack = [];
   static const int _maxUndoDepth = 15;
+  static const String _undoPrefsKey = 'undo_stack_v2';
 
   @override
   void initState() {
@@ -115,6 +117,21 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
+
+    final undoEncoded = prefs.getString(_undoPrefsKey);
+    List<_UndoSnapshot> loadedUndo = [];
+    if (undoEncoded != null && undoEncoded.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(undoEncoded);
+        if (decoded is List) {
+          loadedUndo = decoded
+              .whereType<String>()
+              .map((s) => _UndoSnapshot.fromEncoded(s))
+              .whereType<_UndoSnapshot>()
+              .toList();
+        }
+      } catch (_) {}
+    }
     setState(() {
       price15ProMax = prefs.getDouble('p15') ?? 45000.0;
       price16ProMax = prefs.getDouble('p16') ?? 55000.0;
@@ -208,6 +225,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       if (customers.isEmpty && orders.isNotEmpty) {
         _rebuildCustomersFromOrders();
       }
+
+      _undoStack
+        ..clear()
+        ..addAll(loadedUndo.take(_maxUndoDepth));
     });
   }
 
@@ -260,6 +281,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     if (_undoStack.length > _maxUndoDepth) {
       _undoStack.removeAt(0);
     }
+    unawaited(_saveUndoStack());
   }
 
   Future<bool> _undoLast() async {
@@ -303,7 +325,16 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     });
 
     await _saveData();
+    await _saveUndoStack();
     return true;
+  }
+
+  Future<void> _saveUndoStack() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = _undoStack.map((e) => e.toEncoded()).toList();
+      await prefs.setString(_undoPrefsKey, jsonEncode(encoded));
+    } catch (_) {}
   }
 
   String _normalizeArabicName(String input) {
@@ -3212,4 +3243,112 @@ class _UndoSnapshot {
   final String count15Text;
   final String count16Text;
   final String count17Text;
+
+  static _UndoSnapshot? fromEncoded(String encoded) {
+    try {
+      final raw = base64Decode(encoded);
+      final jsonBytes = gzip.decode(raw);
+      final text = utf8.decode(jsonBytes);
+      final obj = jsonDecode(text);
+      if (obj is! Map<String, dynamic>) return null;
+      return _UndoSnapshot.fromJson(obj);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String toEncoded() {
+    final text = jsonEncode(toJson());
+    final bytes = utf8.encode(text);
+    final compressed = gzip.encode(bytes);
+    return base64Encode(compressed);
+  }
+
+  Map<String, dynamic> toJson() => {
+        'label': label,
+        'at': at,
+        'price15ProMax': price15ProMax,
+        'price16ProMax': price16ProMax,
+        'price17ProMax': price17ProMax,
+        'stock15': stock15,
+        'stock16': stock16,
+        'stock17': stock17,
+        'homeStock15': homeStock15,
+        'homeStock16': homeStock16,
+        'homeStock17': homeStock17,
+        'colorStock': colorStock,
+        'homeColorStock': homeColorStock,
+        'orders': orders,
+        'customers': customers,
+        'inventoryLog': inventoryLog,
+        'netProfit': netProfit,
+        'myShare': myShare,
+        'partnerShare': partnerShare,
+        'myAccountBalance': myAccountBalance,
+        'collectionText': collectionText,
+        'expensesText': expensesText,
+        'count15Text': count15Text,
+        'count16Text': count16Text,
+        'count17Text': count17Text,
+      };
+
+  static _UndoSnapshot fromJson(Map<String, dynamic> j) {
+    Map<String, Map<String, int>> readStock(dynamic v) {
+      final out = <String, Map<String, int>>{};
+      if (v is! Map) return out;
+      for (final entry in v.entries) {
+        final model = entry.key.toString();
+        final colors = entry.value;
+        if (colors is! Map) continue;
+        out[model] = {
+          for (final ce in colors.entries)
+            ce.key.toString(): (ce.value is num) ? (ce.value as num).toInt() : int.tryParse(ce.value.toString()) ?? 0,
+        };
+      }
+      return out;
+    }
+
+    List<Map<String, String>> readListMap(dynamic v) {
+      if (v is! List) return <Map<String, String>>[];
+      return v.whereType<Map>().map((m) {
+        return Map<String, String>.fromEntries(
+          m.entries.map((e) => MapEntry(e.key.toString(), (e.value ?? '').toString())),
+        );
+      }).toList();
+    }
+
+    List<String> readListString(dynamic v) => (v is List) ? v.map((e) => (e ?? '').toString()).toList() : <String>[];
+
+    double d(dynamic v) => (v is num) ? v.toDouble() : double.tryParse(v.toString()) ?? 0.0;
+    int i(dynamic v) => (v is num) ? v.toInt() : int.tryParse(v.toString()) ?? 0;
+    String s(dynamic v) => (v ?? '').toString();
+
+    return _UndoSnapshot(
+      label: s(j['label']),
+      at: s(j['at']),
+      price15ProMax: d(j['price15ProMax']),
+      price16ProMax: d(j['price16ProMax']),
+      price17ProMax: d(j['price17ProMax']),
+      stock15: i(j['stock15']),
+      stock16: i(j['stock16']),
+      stock17: i(j['stock17']),
+      homeStock15: i(j['homeStock15']),
+      homeStock16: i(j['homeStock16']),
+      homeStock17: i(j['homeStock17']),
+      colorStock: readStock(j['colorStock']),
+      homeColorStock: readStock(j['homeColorStock']),
+      orders: readListMap(j['orders']),
+      customers: readListMap(j['customers']),
+      inventoryLog: readListString(j['inventoryLog']),
+      netProfit: d(j['netProfit']),
+      myShare: d(j['myShare']),
+      partnerShare: d(j['partnerShare']),
+      myAccountBalance: d(j['myAccountBalance']),
+      collectionText: s(j['collectionText']),
+      expensesText: s(j['expensesText']),
+      count15Text: s(j['count15Text']),
+      count16Text: s(j['count16Text']),
+      count17Text: s(j['count17Text']),
+    );
+  }
 }
