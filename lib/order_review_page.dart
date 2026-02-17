@@ -131,9 +131,9 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
       } else {
         final m = (nextModels.length > next.length) ? nextModels[next.length] : baseModel;
         final palette = widget.modelColors[m] ?? const <String>[];
-        next.add(palette.isNotEmpty ? palette.first : '');
-      } else {
-        break;
+        final fallback = palette.isNotEmpty ? palette.first : '';
+        if (fallback.isEmpty) break;
+        next.add(fallback);
       }
     }
     _setColorsList(o, next);
