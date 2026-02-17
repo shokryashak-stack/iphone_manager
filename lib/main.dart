@@ -807,35 +807,34 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       return colorRaw.trim();
     }
 
-    Map<String, int> orderColorCounts(Map<String, String> o) {
+    List<Map<String, String>> orderDevices(Map<String, String> o) {
       final count = _parseIntSafe(o['count'] ?? '1');
       final safeCount = count <= 0 ? 1 : count;
+
+      final baseModel = _normalizeModelFromAi((o['model'] ?? '').trim());
       final baseColor = normalizeColor((o['color'] ?? '').trim());
 
+      final modelsRaw = (o['models'] ?? '').trim();
+      final models = modelsRaw
+          .split('|')
+          .map((x) => _normalizeModelFromAi(x))
+          .where((x) => x.isNotEmpty)
+          .toList();
+
       final colorsRaw = (o['colors'] ?? '').trim();
-      final parts = colorsRaw
+      final colors = colorsRaw
           .split('|')
           .map((x) => normalizeColor(x))
           .where((x) => x.isNotEmpty)
           .toList();
 
-      final counts = <String, int>{};
-      if (parts.isNotEmpty) {
-        for (final c in parts.take(safeCount)) {
-          counts[c] = (counts[c] ?? 0) + 1;
-        }
-        // If count > colors list, fill remainder using baseColor (if any)
-        final remaining = safeCount - parts.take(safeCount).length;
-        if (remaining > 0 && baseColor.isNotEmpty) {
-          counts[baseColor] = (counts[baseColor] ?? 0) + remaining;
-        }
-        return counts;
+      final devices = <Map<String, String>>[];
+      for (int i = 0; i < safeCount; i++) {
+        final m = (i < models.length && models[i].isNotEmpty) ? models[i] : baseModel;
+        final c = (i < colors.length && colors[i].isNotEmpty) ? colors[i] : baseColor;
+        devices.add({'model': m, 'color': c});
       }
-
-      if (baseColor.isNotEmpty) {
-        counts[baseColor] = safeCount;
-      }
-      return counts;
+      return devices;
     }
 
     final tempHome = _cloneColorStock(homeColorStock);
@@ -844,52 +843,57 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     final deductedSummary = _createDefaultColorStock();
 
     for (final o in incoming) {
-      final modelKeyRaw = (o['model'] ?? '').trim();
-      final modelKey = _normalizeModelFromAi(modelKeyRaw);
-      final colorKeyRaw = (o['color'] ?? '').trim();
-      final colorKey = normalizeColor(colorKeyRaw);
+      // validation happens per-device below (supports mixed models)
 
-      if (modelKey.isEmpty || !_stockModels.containsKey(modelKey)) {
-        stockErrors.add("❌ الـ AI لم يستطع استنتاج الموديل للعميل: ${o['name'] ?? '-'}");
-        continue;
-      }
-
-      final colorCounts = orderColorCounts(o);
-      if (colorCounts.isEmpty) {
-        stockErrors.add("❌ الـ AI لم يستطع استنتاج اللون للعميل: ${o['name'] ?? '-'}");
+      final devices = orderDevices(o);
+      if (devices.isEmpty) {
+        stockErrors.add("❌ الـ AI لم يستطع استنتاج بيانات الأجهزة للعميل: ${o['name'] ?? '-'}");
         continue;
       }
 
       bool valid = true;
-      for (final c in colorCounts.keys) {
-        if (!_stockModels[modelKey]!.contains(c)) {
+      final needed = <String, Map<String, int>>{};
+      for (final d in devices) {
+        final m = (d['model'] ?? '').trim();
+        final c = (d['color'] ?? '').trim();
+        if (m.isEmpty || !_stockModels.containsKey(m)) {
+          stockErrors.add("❌ موديل غير معروف للعميل: ${o['name'] ?? '-'}");
           valid = false;
           break;
         }
-      }
-      if (!valid) {
-        stockErrors.add("❌ لون غير صالح للموديل ($modelKey) للعميل: ${o['name'] ?? '-'}");
-        continue;
-      }
-
-      for (final entry in colorCounts.entries) {
-        final c = entry.key;
-        final need = entry.value;
-        final available = tempHome[modelKey]?[c] ?? 0;
-        if (available < need) {
-          stockErrors.add("⚠️ مخزن البيت غير كافي: $modelKey ($c) للعميل ${o['name']} (مطلوب $need / متاح $available)");
+        if (c.isEmpty || !_stockModels[m]!.contains(c)) {
+          stockErrors.add("❌ لون غير صالح للموديل ($m) للعميل: ${o['name'] ?? '-'}");
           valid = false;
           break;
         }
+        needed.putIfAbsent(m, () => <String, int>{});
+        needed[m]![c] = (needed[m]![c] ?? 0) + 1;
       }
       if (!valid) continue;
 
-      for (final entry in colorCounts.entries) {
-        final c = entry.key;
-        final need = entry.value;
-        final available = tempHome[modelKey]?[c] ?? 0;
-        tempHome[modelKey]![c] = available - need;
-        deductedSummary[modelKey]![c] = (deductedSummary[modelKey]![c] ?? 0) + need;
+      for (final m in needed.keys) {
+        for (final entry in needed[m]!.entries) {
+          final c = entry.key;
+          final need = entry.value;
+          final available = tempHome[m]?[c] ?? 0;
+          if (available < need) {
+            stockErrors.add("⚠️ مخزن البيت غير كافي: $m ($c) للعميل ${o['name']} (مطلوب $need / متاح $available)");
+            valid = false;
+            break;
+          }
+        }
+        if (!valid) break;
+      }
+      if (!valid) continue;
+
+      for (final m in needed.keys) {
+        for (final entry in needed[m]!.entries) {
+          final c = entry.key;
+          final need = entry.value;
+          final available = tempHome[m]?[c] ?? 0;
+          tempHome[m]![c] = available - need;
+          deductedSummary[m]![c] = (deductedSummary[m]![c] ?? 0) + need;
+        }
       }
 
       final existingCustomer = _findExistingCustomer(o);
@@ -1782,10 +1786,15 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     Map<String, Map<String, int>> exactToDeduct = _createDefaultColorStock();
     List<Map<String, String>> ordersToMark = [];
 
-      for (var o in orders) {
-        if (o['status'] == 'delivered' && o['deducted_main'] != 'true') {
-        final m = _normalizeModelFromAi(o['model'] ?? '');
-        if (!exactToDeduct.containsKey(m)) continue;
+    for (var o in orders) {
+      if (o['status'] == 'delivered' && o['deducted_main'] != 'true') {
+        final baseModel = _normalizeModelFromAi(o['model'] ?? '');
+        final modelsRaw = (o['models'] ?? '').trim();
+        final modelParts = modelsRaw
+            .split('|')
+            .map((x) => _normalizeModelFromAi(x))
+            .where((x) => x.isNotEmpty)
+            .toList();
 
         final colorsRaw = (o['colors'] ?? '').trim();
         final count = _parseIntSafe(o['count'] ?? '1');
@@ -1804,8 +1813,13 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         }
 
         var any = false;
-        for (final cNorm in parts.take(safeCount)) {
-          // Convert normalized color back to known keys by matching contains
+        for (int di = 0; di < safeCount; di++) {
+          final m = (di < modelParts.length && modelParts[di].isNotEmpty) ? modelParts[di] : baseModel;
+          if (!exactToDeduct.containsKey(m)) continue;
+
+          final cNorm = (di < parts.length && parts[di].isNotEmpty) ? parts[di] : baseColor;
+          if (cNorm.isEmpty) continue;
+
           final known = _stockModels[m]!.firstWhere(
             (k) => _normalizeArabicName(k) == cNorm,
             orElse: () => '',
@@ -1815,8 +1829,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           any = true;
         }
         if (any) ordersToMark.add(o);
-        }
       }
+    }
 
     setState(() {
       _smartDeduct('15 Pro Max', s15, exactToDeduct['15 Pro Max']!);

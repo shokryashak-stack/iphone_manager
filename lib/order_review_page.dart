@@ -38,6 +38,12 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     return count <= 0 ? 1 : count;
   }
 
+  List<String> _modelsListOf(Map<String, String> o) {
+    final raw = (o['models'] ?? '').trim();
+    if (raw.isEmpty) return <String>[];
+    return raw.split('|').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+  }
+
   double _confidenceOf(Map<String, String> o) {
     final s = (o['confidence'] ?? '').trim();
     final v = double.tryParse(s);
@@ -60,6 +66,16 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     return raw.split('|').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
   }
 
+  void _setModelsList(Map<String, String> o, List<String> models) {
+    final cleaned = models.map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+    if (cleaned.isEmpty) {
+      o.remove('models');
+      return;
+    }
+    o['models'] = cleaned.join('|');
+    o['model'] = cleaned.first;
+  }
+
   void _setColorsList(Map<String, String> o, List<String> colors) {
     final cleaned = colors.map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
     if (cleaned.isEmpty) {
@@ -74,6 +90,8 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     final count = _countOf(o);
     final baseColor = (o['color'] ?? '').trim();
     final colors = _colorsListOf(o);
+    final baseModel = (o['model'] ?? '').trim();
+    final models = _modelsListOf(o);
 
     if (count <= 1) {
       // Keep a single color in `color`, drop `colors` to avoid confusion.
@@ -81,10 +99,28 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
         o['color'] = colors.first;
       }
       o.remove('colors');
+      o.remove('models');
       o['count'] = '1';
       return;
     }
 
+    // Ensure models list
+    final nextModels = <String>[];
+    if (models.isNotEmpty) {
+      nextModels.addAll(models.take(count));
+    }
+    while (nextModels.length < count) {
+      if (baseModel.isNotEmpty) {
+        nextModels.add(baseModel);
+      } else if (widget.modelColors.keys.isNotEmpty) {
+        nextModels.add(widget.modelColors.keys.first);
+      } else {
+        break;
+      }
+    }
+    _setModelsList(o, nextModels);
+
+    // Ensure colors list (based on each device model)
     final next = <String>[];
     if (colors.isNotEmpty) {
       next.addAll(colors.take(count));
@@ -92,8 +128,10 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     while (next.length < count) {
       if (baseColor.isNotEmpty) {
         next.add(baseColor);
-      } else if (widget.modelColors.containsKey((o['model'] ?? '').trim()) && widget.modelColors[(o['model'] ?? '').trim()]!.isNotEmpty) {
-        next.add(widget.modelColors[(o['model'] ?? '').trim()]!.first);
+      } else {
+        final m = (nextModels.length > next.length) ? nextModels[next.length] : baseModel;
+        final palette = widget.modelColors[m] ?? const <String>[];
+        next.add(palette.isNotEmpty ? palette.first : '');
       } else {
         break;
       }
@@ -106,27 +144,22 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     final req = _defaultCounts;
     for (final o in _orders) {
       final m = (o['model'] ?? '').trim();
-      if (!req.containsKey(m)) continue;
+      if (m.isEmpty) continue;
 
       final safeCount = _countOf(o);
 
       final baseColor = (o['color'] ?? '').trim();
-      final colorsRaw = (o['colors'] ?? '').trim();
-      final parts = colorsRaw.split('|').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+      final parts = _colorsListOf(o);
+      final baseModel = (o['model'] ?? '').trim();
+      final modelParts = _modelsListOf(o);
 
-      final effective = <String>[];
-      if (parts.isNotEmpty) {
-        effective.addAll(parts.take(safeCount));
-        if (effective.length < safeCount && baseColor.isNotEmpty) {
-          effective.addAll(List.filled(safeCount - effective.length, baseColor));
-        }
-      } else if (baseColor.isNotEmpty) {
-        effective.addAll(List.filled(safeCount, baseColor));
-      }
-
-      for (final c in effective) {
-        if (req[m]!.containsKey(c)) {
-          req[m]![c] = (req[m]![c] ?? 0) + 1;
+      for (int di = 0; di < safeCount; di++) {
+        final model = (di < modelParts.length && modelParts[di].isNotEmpty) ? modelParts[di] : baseModel;
+        if (!req.containsKey(model)) continue;
+        final color = (di < parts.length && parts[di].isNotEmpty) ? parts[di] : baseColor;
+        if (color.isEmpty) continue;
+        if (req[model]!.containsKey(color)) {
+          req[model]![color] = (req[model]![color] ?? 0) + 1;
         }
       }
     }
@@ -137,28 +170,22 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     final errs = <String>[];
     for (final o in _orders) {
       final name = (o['name'] ?? '').trim();
-      final model = (o['model'] ?? '').trim();
-      final color = (o['color'] ?? '').trim();
-      if (model.isEmpty || !widget.modelColors.containsKey(model)) {
-        errs.add('❌ موديل غير معروف للعميل: ${name.isEmpty ? '-' : name}');
-        continue;
-      }
+      final baseModel = (o['model'] ?? '').trim();
+      final baseColor = (o['color'] ?? '').trim();
       final count = _countOf(o);
-      if (count > 1) {
-        final colors = _colorsListOf(o);
-        if (colors.length < count) {
-          errs.add('❌ ألوان غير مكتملة (عدد $count) للعميل: ${name.isEmpty ? '-' : name}');
-          continue;
+      final models = _modelsListOf(o);
+      final colors = _colorsListOf(o);
+
+      for (int di = 0; di < count; di++) {
+        final model = (di < models.length && models[di].isNotEmpty) ? models[di] : baseModel;
+        if (model.isEmpty || !widget.modelColors.containsKey(model)) {
+          errs.add('❌ موديل غير معروف (جهاز ${di + 1}) للعميل: ${name.isEmpty ? '-' : name}');
+          break;
         }
-        final bad = colors.take(count).firstWhere((c) => !widget.modelColors[model]!.contains(c), orElse: () => '');
-        if (bad.isNotEmpty) {
-          errs.add('❌ لون غير معروف ($bad) للعميل: ${name.isEmpty ? '-' : name}');
-          continue;
-        }
-      } else {
+        final color = (di < colors.length && colors[di].isNotEmpty) ? colors[di] : baseColor;
         if (color.isEmpty || !widget.modelColors[model]!.contains(color)) {
-          errs.add('❌ لون غير معروف للعميل: ${name.isEmpty ? '-' : name}');
-          continue;
+          errs.add('❌ لون غير معروف (جهاز ${di + 1}) للعميل: ${name.isEmpty ? '-' : name}');
+          break;
         }
       }
     }
@@ -232,6 +259,7 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                 final missing = _missingOf(o);
                 final safeCount = _countOf(o);
                 final colorsList = _colorsListOf(o);
+                final modelsList = _modelsListOf(o);
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
@@ -360,9 +388,11 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                                   final firstColor = (v != null && widget.modelColors[v]!.isNotEmpty) ? widget.modelColors[v]!.first : '';
                                   o['color'] = firstColor;
                                   if (safeCount > 1) {
+                                    _setModelsList(o, List<String>.filled(safeCount, v ?? ''));
                                     _setColorsList(o, List<String>.filled(safeCount, firstColor));
                                   } else {
                                     o.remove('colors');
+                                    o.remove('models');
                                   }
                                 });
                               },
@@ -398,7 +428,7 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: Text(
-                            "ألوان كل جهاز:",
+                            "تفاصيل كل جهاز:",
                             textAlign: TextAlign.right,
                             style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w700),
                           ),
@@ -408,27 +438,68 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                           spacing: 10,
                           runSpacing: 10,
                           children: List.generate(safeCount, (ci) {
+                            final mList = _modelsListOf(o);
+                            final currentModel = (ci < mList.length) ? mList[ci] : (o['model'] ?? '');
+                            final palette = widget.modelColors[currentModel] ?? const <String>[];
+
                             final list = _colorsListOf(o);
-                            final current = (ci < list.length) ? list[ci] : (o['color'] ?? '');
+                            final currentColor = (ci < list.length) ? list[ci] : (o['color'] ?? '');
                             return SizedBox(
                               width: 170,
-                              child: DropdownButtonFormField<String>(
-                                value: colors.contains(current) ? current : (colors.isNotEmpty ? colors.first : null),
-                                items: colors.map((c) => DropdownMenuItem(value: c, child: Text(c, textAlign: TextAlign.right))).toList(),
-                                onChanged: (v) {
-                                  setState(() {
-                                    final next = _colorsListOf(o);
-                                    while (next.length < safeCount) {
-                                      next.add((o['color'] ?? '').trim());
-                                    }
-                                    if (v != null && v.isNotEmpty) next[ci] = v;
-                                    _setColorsList(o, next);
-                                  });
-                                },
-                                decoration: InputDecoration(
-                                  labelText: "جهاز ${ci + 1}",
-                                  border: const OutlineInputBorder(),
-                                ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  DropdownButtonFormField<String>(
+                                    value: widget.modelColors.containsKey(currentModel) ? currentModel : (widget.modelColors.keys.isNotEmpty ? widget.modelColors.keys.first : null),
+                                    items: widget.modelColors.keys
+                                        .map((m) => DropdownMenuItem(value: m, child: Text(m, textAlign: TextAlign.right)))
+                                        .toList(),
+                                    onChanged: (v) {
+                                      setState(() {
+                                        final nextModels = _modelsListOf(o);
+                                        while (nextModels.length < safeCount) {
+                                          nextModels.add((o['model'] ?? '').trim());
+                                        }
+                                        nextModels[ci] = (v ?? '').trim();
+                                        _setModelsList(o, nextModels);
+
+                                        final palette2 = widget.modelColors[(v ?? '').trim()] ?? const <String>[];
+                                        final nextColors = _colorsListOf(o);
+                                        while (nextColors.length < safeCount) {
+                                          nextColors.add((o['color'] ?? '').trim());
+                                        }
+                                        final fallback = palette2.isNotEmpty ? palette2.first : '';
+                                        if (fallback.isNotEmpty && !palette2.contains(nextColors[ci])) {
+                                          nextColors[ci] = fallback;
+                                        }
+                                        _setColorsList(o, nextColors);
+                                      });
+                                    },
+                                    decoration: InputDecoration(
+                                      labelText: "موديل ${ci + 1}",
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  DropdownButtonFormField<String>(
+                                    value: palette.contains(currentColor) ? currentColor : (palette.isNotEmpty ? palette.first : null),
+                                    items: palette.map((c) => DropdownMenuItem(value: c, child: Text(c, textAlign: TextAlign.right))).toList(),
+                                    onChanged: (v) {
+                                      setState(() {
+                                        final next = _colorsListOf(o);
+                                        while (next.length < safeCount) {
+                                          next.add((o['color'] ?? '').trim());
+                                        }
+                                        if (v != null && v.isNotEmpty) next[ci] = v;
+                                        _setColorsList(o, next);
+                                      });
+                                    },
+                                    decoration: InputDecoration(
+                                      labelText: "لون ${ci + 1}",
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
                           }),
