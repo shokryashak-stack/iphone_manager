@@ -321,69 +321,79 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                       ],
                       if (safeCount > 1) ...[
                         const SizedBox(height: 6),
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            IconButton(
-                              tooltip: 'نقص العدد',
-                              onPressed: safeCount <= 1
-                                  ? null
-                                  : () {
-                                      setState(() {
-                                        o['count'] = (safeCount - 1).toString();
-                                        _ensureColorsForCount(o);
-                                      });
-                                    },
-                              icon: const Icon(Icons.remove_circle_outline),
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: 'نقص العدد',
+                                  onPressed: safeCount <= 1
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            o['count'] = (safeCount - 1).toString();
+                                            _ensureColorsForCount(o);
+                                          });
+                                        },
+                                  icon: const Icon(Icons.remove_circle_outline),
+                                ),
+                                Text(
+                                  "العدد: $safeCount",
+                                  style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w800),
+                                ),
+                                IconButton(
+                                  tooltip: 'زود العدد',
+                                  onPressed: () {
+                                    setState(() {
+                                      o['count'] = (safeCount + 1).toString();
+                                      _ensureColorsForCount(o);
+                                    });
+                                  },
+                                  icon: const Icon(Icons.add_circle_outline),
+                                ),
+                              ],
                             ),
-                            Text(
-                              "العدد: $safeCount",
-                              style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w800),
-                            ),
-                            IconButton(
-                              tooltip: 'زود العدد',
-                              onPressed: () {
-                                setState(() {
-                                  o['count'] = (safeCount + 1).toString();
-                                  _ensureColorsForCount(o);
-                                });
-                              },
-                              icon: const Icon(Icons.add_circle_outline),
-                            ),
-                            const Spacer(),
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                setState(() {
-                                  final mList = _modelsListOf(o);
-                                  final base = mList.isNotEmpty ? mList.first : (o['model'] ?? '').trim();
-                                  final fallbackModel = widget.modelColors.containsKey(base)
-                                      ? base
-                                      : (widget.modelColors.keys.isNotEmpty ? widget.modelColors.keys.first : '');
-                                  _setModelsList(o, List<String>.filled(safeCount, fallbackModel));
+                            const SizedBox(height: 8),
+                            Wrap(
+                              alignment: WrapAlignment.end,
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      final mList = _modelsListOf(o);
+                                      final base = mList.isNotEmpty ? mList.first : (o['model'] ?? '').trim();
+                                      final fallbackModel = widget.modelColors.containsKey(base)
+                                          ? base
+                                          : (widget.modelColors.keys.isNotEmpty ? widget.modelColors.keys.first : '');
+                                      _setModelsList(o, List<String>.filled(safeCount, fallbackModel));
 
-                                  final nextColors = <String>[];
-                                  for (int i = 0; i < safeCount; i++) {
-                                    final palette = widget.modelColors[fallbackModel] ?? const <String>[];
-                                    nextColors.add(palette.isNotEmpty ? palette.first : '');
-                                  }
-                                  _setColorsList(o, nextColors);
-                                });
-                              },
-                              icon: const Icon(Icons.phone_iphone_rounded, size: 18),
-                              label: const Text('نفس الموديل'),
+                                      final nextColors = <String>[];
+                                      for (int i = 0; i < safeCount; i++) {
+                                        final palette = widget.modelColors[fallbackModel] ?? const <String>[];
+                                        nextColors.add(palette.isNotEmpty ? palette.first : '');
+                                      }
+                                      _setColorsList(o, nextColors);
+                                    });
+                                  },
+                                  icon: const Icon(Icons.phone_iphone_rounded, size: 18),
+                                  label: const Text('نفس الموديل', maxLines: 1, overflow: TextOverflow.ellipsis),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      final base = (o['color'] ?? '').trim();
+                                      final next = List<String>.filled(safeCount, base.isEmpty ? (colors.isNotEmpty ? colors.first : '') : base);
+                                      _setColorsList(o, next);
+                                    });
+                                  },
+                                  icon: const Icon(Icons.palette_outlined, size: 18),
+                                  label: const Text('نفس اللون', maxLines: 1, overflow: TextOverflow.ellipsis),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            if (safeCount > 1)
-                              OutlinedButton.icon(
-                                onPressed: () {
-                                  setState(() {
-                                    final base = (o['color'] ?? '').trim();
-                                    final next = List<String>.filled(safeCount, base.isEmpty ? (colors.isNotEmpty ? colors.first : '') : base);
-                                    _setColorsList(o, next);
-                                  });
-                                },
-                                icon: const Icon(Icons.palette_outlined, size: 18),
-                                label: const Text('نفس اللون'),
-                              ),
                           ],
                         ),
                       ],
