@@ -350,6 +350,28 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                               icon: const Icon(Icons.add_circle_outline),
                             ),
                             const Spacer(),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  final mList = _modelsListOf(o);
+                                  final base = mList.isNotEmpty ? mList.first : (o['model'] ?? '').trim();
+                                  final fallbackModel = widget.modelColors.containsKey(base)
+                                      ? base
+                                      : (widget.modelColors.keys.isNotEmpty ? widget.modelColors.keys.first : '');
+                                  _setModelsList(o, List<String>.filled(safeCount, fallbackModel));
+
+                                  final nextColors = <String>[];
+                                  for (int i = 0; i < safeCount; i++) {
+                                    final palette = widget.modelColors[fallbackModel] ?? const <String>[];
+                                    nextColors.add(palette.isNotEmpty ? palette.first : '');
+                                  }
+                                  _setColorsList(o, nextColors);
+                                });
+                              },
+                              icon: const Icon(Icons.phone_iphone_rounded, size: 18),
+                              label: const Text('نفس الموديل'),
+                            ),
+                            const SizedBox(width: 8),
                             if (safeCount > 1)
                               OutlinedButton.icon(
                                 onPressed: () {
@@ -374,55 +396,45 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                         ),
                       ],
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: widget.modelColors.containsKey(model) ? model : null,
-                              items: widget.modelColors.keys
-                                  .map((m) => DropdownMenuItem(value: m, child: Text(m, textAlign: TextAlign.right)))
-                                  .toList(),
-                              onChanged: (v) {
-                                setState(() {
-                                  o['model'] = v ?? '';
-                                  final firstColor = (v != null && widget.modelColors[v]!.isNotEmpty) ? widget.modelColors[v]!.first : '';
-                                  o['color'] = firstColor;
-                                  if (safeCount > 1) {
-                                    _setModelsList(o, List<String>.filled(safeCount, v ?? ''));
-                                    _setColorsList(o, List<String>.filled(safeCount, firstColor));
-                                  } else {
+                      if (safeCount == 1)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: widget.modelColors.containsKey(model) ? model : null,
+                                items: widget.modelColors.keys
+                                    .map((m) => DropdownMenuItem(value: m, child: Text(m, textAlign: TextAlign.right)))
+                                    .toList(),
+                                onChanged: (v) {
+                                  setState(() {
+                                    o['model'] = v ?? '';
+                                    final firstColor = (v != null && widget.modelColors[v]!.isNotEmpty) ? widget.modelColors[v]!.first : '';
+                                    o['color'] = firstColor;
                                     o.remove('colors');
                                     o.remove('models');
-                                  }
-                                });
-                              },
-                              decoration: const InputDecoration(
-                                labelText: 'الموديل',
-                                border: OutlineInputBorder(),
+                                    o['count'] = '1';
+                                  });
+                                },
+                                decoration: const InputDecoration(
+                                  labelText: 'الموديل',
+                                  border: OutlineInputBorder(),
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: colors.contains(color) ? color : null,
-                              items: colors.map((c) => DropdownMenuItem(value: c, child: Text(c, textAlign: TextAlign.right))).toList(),
-                              onChanged: (v) {
-                                setState(() {
-                                  o['color'] = v ?? '';
-                                  if (safeCount > 1) {
-                                    _ensureColorsForCount(o);
-                                  }
-                                });
-                              },
-                              decoration: const InputDecoration(
-                                labelText: 'اللون',
-                                border: OutlineInputBorder(),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: colors.contains(color) ? color : null,
+                                items: colors.map((c) => DropdownMenuItem(value: c, child: Text(c, textAlign: TextAlign.right))).toList(),
+                                onChanged: (v) => setState(() => o['color'] = v ?? ''),
+                                decoration: const InputDecoration(
+                                  labelText: 'اللون',
+                                  border: OutlineInputBorder(),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
                       if (safeCount > 1) ...[
                         const SizedBox(height: 10),
                         Align(
