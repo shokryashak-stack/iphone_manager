@@ -33,6 +33,11 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     _orders.sort((a, b) => _confidenceOf(a).compareTo(_confidenceOf(b)));
   }
 
+  int _countOf(Map<String, String> o) {
+    final count = int.tryParse((o['count'] ?? '1').trim()) ?? 1;
+    return count <= 0 ? 1 : count;
+  }
+
   double _confidenceOf(Map<String, String> o) {
     final s = (o['confidence'] ?? '').trim();
     final v = double.tryParse(s);
@@ -49,14 +54,61 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     return s.split(',').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
   }
 
+  List<String> _colorsListOf(Map<String, String> o) {
+    final raw = (o['colors'] ?? '').trim();
+    if (raw.isEmpty) return <String>[];
+    return raw.split('|').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+  }
+
+  void _setColorsList(Map<String, String> o, List<String> colors) {
+    final cleaned = colors.map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+    if (cleaned.isEmpty) {
+      o.remove('colors');
+      return;
+    }
+    o['colors'] = cleaned.join('|');
+    o['color'] = cleaned.first;
+  }
+
+  void _ensureColorsForCount(Map<String, String> o) {
+    final count = _countOf(o);
+    final baseColor = (o['color'] ?? '').trim();
+    final colors = _colorsListOf(o);
+
+    if (count <= 1) {
+      // Keep a single color in `color`, drop `colors` to avoid confusion.
+      if (baseColor.isEmpty && colors.isNotEmpty) {
+        o['color'] = colors.first;
+      }
+      o.remove('colors');
+      o['count'] = '1';
+      return;
+    }
+
+    final next = <String>[];
+    if (colors.isNotEmpty) {
+      next.addAll(colors.take(count));
+    }
+    while (next.length < count) {
+      if (baseColor.isNotEmpty) {
+        next.add(baseColor);
+      } else if (widget.modelColors.containsKey((o['model'] ?? '').trim()) && widget.modelColors[(o['model'] ?? '').trim()]!.isNotEmpty) {
+        next.add(widget.modelColors[(o['model'] ?? '').trim()]!.first);
+      } else {
+        break;
+      }
+    }
+    _setColorsList(o, next);
+    o['count'] = count.toString();
+  }
+
   Map<String, Map<String, int>> _requiredCounts() {
     final req = _defaultCounts;
     for (final o in _orders) {
       final m = (o['model'] ?? '').trim();
       if (!req.containsKey(m)) continue;
 
-      final count = int.tryParse((o['count'] ?? '1').trim()) ?? 1;
-      final safeCount = count <= 0 ? 1 : count;
+      final safeCount = _countOf(o);
 
       final baseColor = (o['color'] ?? '').trim();
       final colorsRaw = (o['colors'] ?? '').trim();
@@ -91,9 +143,23 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
         errs.add('❌ موديل غير معروف للعميل: ${name.isEmpty ? '-' : name}');
         continue;
       }
-      if (color.isEmpty || !widget.modelColors[model]!.contains(color)) {
-        errs.add('❌ لون غير معروف للعميل: ${name.isEmpty ? '-' : name}');
-        continue;
+      final count = _countOf(o);
+      if (count > 1) {
+        final colors = _colorsListOf(o);
+        if (colors.length < count) {
+          errs.add('❌ ألوان غير مكتملة (عدد $count) للعميل: ${name.isEmpty ? '-' : name}');
+          continue;
+        }
+        final bad = colors.take(count).firstWhere((c) => !widget.modelColors[model]!.contains(c), orElse: () => '');
+        if (bad.isNotEmpty) {
+          errs.add('❌ لون غير معروف ($bad) للعميل: ${name.isEmpty ? '-' : name}');
+          continue;
+        }
+      } else {
+        if (color.isEmpty || !widget.modelColors[model]!.contains(color)) {
+          errs.add('❌ لون غير معروف للعميل: ${name.isEmpty ? '-' : name}');
+          continue;
+        }
       }
     }
 
@@ -116,6 +182,9 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    for (final o in _orders) {
+      _ensureColorsForCount(o);
+    }
     final errors = _validationErrors();
 
     return Scaffold(
@@ -161,10 +230,8 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                 final discount = (o['discount'] ?? '0').trim();
                 final confidence = _confidenceOf(o);
                 final missing = _missingOf(o);
-                final count = int.tryParse((o['count'] ?? '1').trim()) ?? 1;
-                final safeCount = count <= 0 ? 1 : count;
-                final colorsRaw = (o['colors'] ?? '').trim();
-                final colorsList = colorsRaw.split('|').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+                final safeCount = _countOf(o);
+                final colorsList = _colorsListOf(o);
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
@@ -226,10 +293,48 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                       ],
                       if (safeCount > 1) ...[
                         const SizedBox(height: 6),
-                        Text(
-                          "العدد: $safeCount",
-                          textAlign: TextAlign.right,
-                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w700),
+                        Row(
+                          children: [
+                            IconButton(
+                              tooltip: 'نقص العدد',
+                              onPressed: safeCount <= 1
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        o['count'] = (safeCount - 1).toString();
+                                        _ensureColorsForCount(o);
+                                      });
+                                    },
+                              icon: const Icon(Icons.remove_circle_outline),
+                            ),
+                            Text(
+                              "العدد: $safeCount",
+                              style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w800),
+                            ),
+                            IconButton(
+                              tooltip: 'زود العدد',
+                              onPressed: () {
+                                setState(() {
+                                  o['count'] = (safeCount + 1).toString();
+                                  _ensureColorsForCount(o);
+                                });
+                              },
+                              icon: const Icon(Icons.add_circle_outline),
+                            ),
+                            const Spacer(),
+                            if (safeCount > 1)
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    final base = (o['color'] ?? '').trim();
+                                    final next = List<String>.filled(safeCount, base.isEmpty ? (colors.isNotEmpty ? colors.first : '') : base);
+                                    _setColorsList(o, next);
+                                  });
+                                },
+                                icon: const Icon(Icons.palette_outlined, size: 18),
+                                label: const Text('نفس اللون'),
+                              ),
+                          ],
                         ),
                       ],
                       if (colorsList.isNotEmpty) ...[
@@ -254,6 +359,11 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                                   o['model'] = v ?? '';
                                   final firstColor = (v != null && widget.modelColors[v]!.isNotEmpty) ? widget.modelColors[v]!.first : '';
                                   o['color'] = firstColor;
+                                  if (safeCount > 1) {
+                                    _setColorsList(o, List<String>.filled(safeCount, firstColor));
+                                  } else {
+                                    o.remove('colors');
+                                  }
                                 });
                               },
                               decoration: const InputDecoration(
@@ -267,7 +377,14 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                             child: DropdownButtonFormField<String>(
                               value: colors.contains(color) ? color : null,
                               items: colors.map((c) => DropdownMenuItem(value: c, child: Text(c, textAlign: TextAlign.right))).toList(),
-                              onChanged: (v) => setState(() => o['color'] = v ?? ''),
+                              onChanged: (v) {
+                                setState(() {
+                                  o['color'] = v ?? '';
+                                  if (safeCount > 1) {
+                                    _ensureColorsForCount(o);
+                                  }
+                                });
+                              },
                               decoration: const InputDecoration(
                                 labelText: 'اللون',
                                 border: OutlineInputBorder(),
@@ -276,6 +393,47 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                           ),
                         ],
                       ),
+                      if (safeCount > 1) ...[
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            "ألوان كل جهاز:",
+                            textAlign: TextAlign.right,
+                            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: List.generate(safeCount, (ci) {
+                            final list = _colorsListOf(o);
+                            final current = (ci < list.length) ? list[ci] : (o['color'] ?? '');
+                            return SizedBox(
+                              width: 170,
+                              child: DropdownButtonFormField<String>(
+                                value: colors.contains(current) ? current : (colors.isNotEmpty ? colors.first : null),
+                                items: colors.map((c) => DropdownMenuItem(value: c, child: Text(c, textAlign: TextAlign.right))).toList(),
+                                onChanged: (v) {
+                                  setState(() {
+                                    final next = _colorsListOf(o);
+                                    while (next.length < safeCount) {
+                                      next.add((o['color'] ?? '').trim());
+                                    }
+                                    if (v != null && v.isNotEmpty) next[ci] = v;
+                                    _setColorsList(o, next);
+                                  });
+                                },
+                                decoration: InputDecoration(
+                                  labelText: "جهاز ${ci + 1}",
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       Row(
                         children: [
