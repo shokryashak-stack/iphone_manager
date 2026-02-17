@@ -94,6 +94,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   double partnerShare = 0.0;
   double myAccountBalance = 0.0;
 
+  final List<_UndoSnapshot> _undoStack = [];
+  static const int _maxUndoDepth = 15;
+
   @override
   void initState() {
     super.initState();
@@ -224,6 +227,85 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     await prefs.setString('customers_v1', jsonEncode(customers));
   }
 
+  void _pushUndo(String label) {
+    final snapshot = _UndoSnapshot(
+      label: label,
+      at: DateTime.now().toIso8601String(),
+      price15ProMax: price15ProMax,
+      price16ProMax: price16ProMax,
+      price17ProMax: price17ProMax,
+      stock15: stock15,
+      stock16: stock16,
+      stock17: stock17,
+      homeStock15: homeStock15,
+      homeStock16: homeStock16,
+      homeStock17: homeStock17,
+      colorStock: _cloneColorStock(colorStock),
+      homeColorStock: _cloneColorStock(homeColorStock),
+      orders: orders.map((e) => Map<String, String>.from(e)).toList(),
+      customers: customers.map((e) => Map<String, String>.from(e)).toList(),
+      inventoryLog: List<String>.from(inventoryLog),
+      netProfit: netProfit,
+      myShare: myShare,
+      partnerShare: partnerShare,
+      myAccountBalance: myAccountBalance,
+      collectionText: collectionController.text,
+      expensesText: expensesController.text,
+      count15Text: count15Controller.text,
+      count16Text: count16Controller.text,
+      count17Text: count17Controller.text,
+    );
+
+    _undoStack.add(snapshot);
+    if (_undoStack.length > _maxUndoDepth) {
+      _undoStack.removeAt(0);
+    }
+  }
+
+  Future<bool> _undoLast() async {
+    if (_undoStack.isEmpty) return false;
+    final s = _undoStack.removeLast();
+
+    setState(() {
+      price15ProMax = s.price15ProMax;
+      price16ProMax = s.price16ProMax;
+      price17ProMax = s.price17ProMax;
+
+      stock15 = s.stock15;
+      stock16 = s.stock16;
+      stock17 = s.stock17;
+
+      homeStock15 = s.homeStock15;
+      homeStock16 = s.homeStock16;
+      homeStock17 = s.homeStock17;
+
+      colorStock = _cloneColorStock(s.colorStock);
+      homeColorStock = _cloneColorStock(s.homeColorStock);
+
+      orders
+        ..clear()
+        ..addAll(s.orders.map((e) => Map<String, String>.from(e)));
+      customers
+        ..clear()
+        ..addAll(s.customers.map((e) => Map<String, String>.from(e)));
+      inventoryLog = List<String>.from(s.inventoryLog);
+
+      netProfit = s.netProfit;
+      myShare = s.myShare;
+      partnerShare = s.partnerShare;
+      myAccountBalance = s.myAccountBalance;
+
+      collectionController.text = s.collectionText;
+      expensesController.text = s.expensesText;
+      count15Controller.text = s.count15Text;
+      count16Controller.text = s.count16Text;
+      count17Controller.text = s.count17Text;
+    });
+
+    await _saveData();
+    return true;
+  }
+
   String _normalizeArabicName(String input) {
     var s = input.trim().toLowerCase();
     s = s.replaceAll(RegExp(r'\s+'), ' ');
@@ -325,6 +407,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   List<Map<String, String>> _customersSnapshot() => customers.map((e) => Map<String, String>.from(e)).toList();
 
   Future<int> _normalizeOrderPhonesAndRebuildCustomers() async {
+    _pushUndo("تنظيف أرقام العملاء");
     int changed = 0;
     for (final o in orders) {
       final beforePhone = o['phone'] ?? '';
@@ -360,6 +443,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   }
 
   Future<int?> _editCustomerDialogAndApply(Map<String, String> customer) async {
+    _pushUndo("تعديل عميل");
     final nameCtrl = TextEditingController(text: customer['name'] ?? '');
     final phoneCtrl = TextEditingController(text: customer['phone'] ?? '');
     final govCtrl = TextEditingController(text: customer['governorate'] ?? '');
@@ -436,6 +520,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   }
 
   Future<int?> _deleteCustomerWithConfirm(Map<String, String> customer) async {
+    _pushUndo("مسح عميل");
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dctx) => AlertDialog(
@@ -466,6 +551,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   Future<int?> _deleteSelectedCustomersByKeys(Set<String> keys) async {
     if (keys.isEmpty) return 0;
+    _pushUndo("مسح عملاء");
     int removedOrders = 0;
     final keysNow = keys.toList();
     for (final k in keysNow) {
@@ -669,6 +755,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   Future<String> _applyIncomingOrdersToHomeStock(List<Map<String, String>> incoming, {String logSource = 'استيراد واتساب AI'}) async {
     if (incoming.isEmpty) return 'لم يتم العثور على أوردرات في النص.';
+    _pushUndo(logSource);
 
     String normalizeColor(String colorRaw) {
       final c = _normalizeArabicName(colorRaw);
@@ -1018,6 +1105,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   int _parseIntSafe(String v) => int.tryParse(_toWesternDigits(v).replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
   Future<String> _deleteOrderAction(String name, String? governorate) async {
+    _pushUndo("حذف أوردر");
     final requested = _normalizeArabicName(name);
     final requestedGov = governorate == null ? '' : _normalizeArabicName(governorate);
     final before = orders.length;
@@ -1038,6 +1126,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   }
 
   Future<String> _cancelOrderAction(String name, String? governorate) async {
+    _pushUndo("إلغاء أوردر");
     final requested = _normalizeArabicName(name);
     final requestedGov = governorate == null ? '' : _normalizeArabicName(governorate);
     var canceled = 0;
@@ -1074,6 +1163,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       resolvedColor = fallback;
     }
 
+    _pushUndo("توريد AI");
     setState(() {
       colorStock[modelKey]![resolvedColor] = (colorStock[modelKey]![resolvedColor] ?? 0) + count;
       _syncTotalsFromColorStock();
@@ -1144,6 +1234,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           TextButton(
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
+              _pushUndo("مسح مخزون");
               setState(() {
                 colorStock = _createDefaultColorStock();
                 _syncTotalsFromColorStock();
@@ -1591,6 +1682,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     }
     
     calculateProfit();
+    _pushUndo("مبيعات");
 
     Map<String, Map<String, int>> exactToDeduct = _createDefaultColorStock();
     List<Map<String, String>> ordersToMark = [];
@@ -1925,6 +2017,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     );
 
     if (!mounted || updatedStock == null) return;
+    _pushUndo("تعديل مخزن");
     setState(() {
       colorStock = updatedStock;
       _syncTotalsFromColorStock();
@@ -1946,6 +2039,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     );
 
     if (!mounted || updatedStock == null) return;
+    _pushUndo("تعديل مخزن البيت");
     setState(() {
       homeColorStock = updatedStock;
       _syncHomeTotalsFromColorStock();
@@ -1989,6 +2083,23 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         actions: [
           Row(
             children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _undoStack.isEmpty
+                      ? null
+                      : () async {
+                          final ok = await _undoLast();
+                          if (!mounted) return;
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(ok ? "تم التراجع عن آخر عملية" : "لا يوجد ما يمكن التراجع عنه")),
+                          );
+                        },
+                  icon: const Icon(Icons.undo_rounded, size: 18),
+                  label: const Text("تراجع"),
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: inventoryLog.isEmpty ? null : _confirmClearLog,
@@ -2949,4 +3060,67 @@ class _WarehousePageState extends State<WarehousePage> {
       ),
     );
   }
+}
+
+class _UndoSnapshot {
+  const _UndoSnapshot({
+    required this.label,
+    required this.at,
+    required this.price15ProMax,
+    required this.price16ProMax,
+    required this.price17ProMax,
+    required this.stock15,
+    required this.stock16,
+    required this.stock17,
+    required this.homeStock15,
+    required this.homeStock16,
+    required this.homeStock17,
+    required this.colorStock,
+    required this.homeColorStock,
+    required this.orders,
+    required this.customers,
+    required this.inventoryLog,
+    required this.netProfit,
+    required this.myShare,
+    required this.partnerShare,
+    required this.myAccountBalance,
+    required this.collectionText,
+    required this.expensesText,
+    required this.count15Text,
+    required this.count16Text,
+    required this.count17Text,
+  });
+
+  final String label;
+  final String at;
+
+  final double price15ProMax;
+  final double price16ProMax;
+  final double price17ProMax;
+
+  final int stock15;
+  final int stock16;
+  final int stock17;
+
+  final int homeStock15;
+  final int homeStock16;
+  final int homeStock17;
+
+  final Map<String, Map<String, int>> colorStock;
+  final Map<String, Map<String, int>> homeColorStock;
+
+  final List<Map<String, String>> orders;
+  final List<Map<String, String>> customers;
+  final List<String> inventoryLog;
+
+  final double netProfit;
+  final double myShare;
+  final double partnerShare;
+  final double myAccountBalance;
+
+  final String collectionText;
+  final String expensesText;
+  final String count15Text;
+  final String count16Text;
+  final String count17Text;
 }
