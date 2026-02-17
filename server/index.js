@@ -250,6 +250,10 @@ function stripDiacritics(s) {
   return String(s || "").replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "");
 }
 
+function stripBidi(s) {
+  return String(s || "").replace(/[\u200E\u200F\u202A-\u202E]/g, "");
+}
+
 function normalizeArabicDigits(s) {
   const map = {
     "٠": "0",
@@ -292,7 +296,7 @@ function normalizeModelNameAny(modelRaw) {
 function normalizeColorNameAny(colorRaw) {
   const s = normalizeSpaces(stripDiacritics(String(colorRaw || ""))).toLowerCase();
   if (!s) return "";
-  if (s.includes("سلفر") || s.includes("فضي") || s.includes("فضه") || s.includes("silver") || s.includes("ابيض") || s.includes("أبيض") || s.includes("white")) return "سلفر";
+  if (s.includes("سلفر") || s.includes("سيلفر") || s.includes("فضي") || s.includes("فضه") || s.includes("silver") || s.includes("ابيض") || s.includes("أبيض") || s.includes("white")) return "سلفر";
   if (s.includes("اسود") || s.includes("أسود") || s.includes("بلاك") || s.includes("black")) return "اسود";
   if (s.includes("ازرق") || s.includes("أزرق") || s.includes("blue")) return "ازرق";
   if (s.includes("دهبي") || s.includes("ذهبي") || s.includes("جولد") || s.includes("gold")) return "دهبي";
@@ -300,6 +304,41 @@ function normalizeColorNameAny(colorRaw) {
   if (s.includes("كحلي") || s.includes("navy")) return "كحلي";
   if (s.includes("تيتانيوم") || s.includes("طبيعي") || s.includes("ناتشورال") || s.includes("natural")) return "تيتانيوم";
   return "";
+}
+
+function extractNormalizedColors(textRaw) {
+  const text = normalizeNewlines(stripBidi(normalizeArabicDigits(stripDiacritics(String(textRaw || "")))));
+  const colors = [];
+  const push = (c) => {
+    if (!c) return;
+    if (!colors.includes(c)) colors.push(c);
+  };
+
+  // Try to focus on "لون" section first (often contains multiple colors)
+  const m = text.match(/(?:لون|اللون)\s*[:\/]?\s*([^\n]+)/i);
+  if (m && m[1]) {
+    const seg = normalizeSpaces(m[1]);
+    for (const part of seg.split(/[\u060C,|/]|(?:\s+و\s+)|(?:\s*&\s*)/).map((x) => x.trim()).filter(Boolean)) {
+      push(normalizeColorNameAny(part));
+    }
+  }
+
+  // Also scan lines for standalone colors (e.g. "وسيلفر" on next line)
+  const lines = text.split("\n").map((l) => normalizeSpaces(l)).filter(Boolean);
+  for (const line of lines) {
+    // If line is short and contains a color word, capture it.
+    const c = normalizeColorNameAny(line);
+    if (c) push(c);
+  }
+
+  return colors;
+}
+
+function extractCount(textRaw) {
+  const text = normalizeSpaces(normalizeNewlines(stripBidi(normalizeArabicDigits(stripDiacritics(String(textRaw || ""))))));
+  const m = text.match(/(\d+)\s*ايفونات|(\d+)\s*ايفون|(\d+)\s*iphone/i);
+  const n = m ? Number.parseInt(m[1] || m[2] || m[3] || "1", 10) : 1;
+  return Number.isInteger(n) && n > 0 ? n : 1;
 }
 
 function tryParseJsonArray(textRaw) {
@@ -347,8 +386,8 @@ function parseWhatsAppBlockRuleBased(blockRaw) {
     .replace(/^\s*\+\d+\s+\d+\s+\d+:\s*/m, "")
     .trim();
 
-  const text = stripDiacritics(cleaned);
-  const textDigits = normalizeArabicDigits(text);
+  const text = stripBidi(stripDiacritics(cleaned));
+  const textDigits = stripBidi(normalizeArabicDigits(text));
   const textNoPhones = textDigits.replace(/0?1[0-2,5]\d{8}/g, " ");
   const lines = textDigits
     .split("\n")
@@ -399,9 +438,11 @@ function parseWhatsAppBlockRuleBased(blockRaw) {
     return d || "";
   }
 
+  const count = extractCount(textNoPhones);
   const modelDigit = detectModelFromOrderText(textNoPhones);
   const model = modelDigit ? `${modelDigit} Pro Max` : "";
-  const color = normalizeColorNameAny(textDigits);
+  const colors = extractNormalizedColors(textDigits);
+  const color = colors[0] || normalizeColorNameAny(textDigits);
 
   const nums = (textNoPhones.match(/\d{1,5}/g) || [])
     .map((x) => Number.parseInt(x, 10))
@@ -424,6 +465,8 @@ function parseWhatsAppBlockRuleBased(blockRaw) {
     address,
     model,
     color,
+    count,
+    ...(colors.length ? { colors } : {}),
     price: price ? String(price) : "",
     discount: String(discount || 0),
     shipping: String(shipping || 0),
@@ -437,11 +480,17 @@ function normalizeParsedOrder(obj) {
   const governorate = normalizeSpaces(obj?.governorate);
   const address = normalizeSpaces(obj?.address);
   const model = normalizeModelNameAny(obj?.model);
-  const color = normalizeColorNameAny(obj?.color);
+  const colorsRaw = Array.isArray(obj?.colors) ? obj.colors : null;
+  const colors = colorsRaw ? colorsRaw.map(normalizeColorNameAny).filter(Boolean) : [];
+  const color = normalizeColorNameAny(obj?.color) || (colors[0] || "");
   const phone = normalizePhone(obj?.phone) || normalizePhone((obj?.phones && obj.phones[0]) || "");
   const phones = Array.from(
     new Set([phone, ...(Array.isArray(obj?.phones) ? obj.phones : [])].map(normalizePhone).filter(Boolean))
   );
+
+  const countN = Number.parseInt(normalizeArabicDigits(obj?.count), 10);
+  const count = Number.isInteger(countN) && countN > 0 ? countN : 1;
+  const finalColors = colors.length ? colors.slice(0, count) : [];
 
   const priceN = Number.parseInt(normalizeArabicDigits(obj?.price), 10);
   const discountN = Number.parseInt(normalizeArabicDigits(obj?.discount), 10);
@@ -477,7 +526,9 @@ function normalizeParsedOrder(obj) {
     ...(phones.length > 1 ? { phones } : {}),
     address,
     model,
-    color,
+    color: color || (finalColors[0] || ""),
+    ...(finalColors.length ? { colors: finalColors } : {}),
+    count,
     price: price ? String(price) : "",
     discount: String(discount || 0),
     shipping: String(shipping || 0),
@@ -558,13 +609,16 @@ Each array item is ONE order.
 Normalization rules (very important):
 - model MUST be exactly one of: "15 Pro Max", "16 Pro Max", "17 Pro Max"
 - color MUST be exactly one of: "سلفر","اسود","ازرق","دهبي","برتقالي","كحلي","تيتانيوم"
+- count MUST be integer >= 1
+- If the order requests multiple devices, set count accordingly.
+- If multiple colors are mentioned for a multi-device order, set "colors" as an array of normalized colors (length should be <= count).
 - price, shipping, discount are integers as strings (no currency symbols)
 - phone should be an Egyptian mobile number (11 digits starting with 01) without spaces or +20
 - If there are multiple phones, return "phones" as array of normalized phones, and set "phone" as the first.
 - cod_total = price - discount + shipping
 
 Fields to output per order:
-{ "name","governorate","address","phone","phones","model","color","price","shipping","discount","cod_total","notes" }
+{ "name","governorate","address","phone","phones","model","color","colors","count","price","shipping","discount","cod_total","notes" }
 
 Input WhatsApp text:
 ${text}

@@ -729,6 +729,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         ? (e['phones'] as List).map((x) => s(x)).where((x) => x.isNotEmpty).toList()
         : <String>[];
 
+    final colors = (e['colors'] is List)
+        ? (e['colors'] as List).map((x) => s(x)).where((x) => x.isNotEmpty).toList()
+        : <String>[];
+
     final phone = s(e['phone']).isNotEmpty ? s(e['phone']) : (phones.isNotEmpty ? phones.first : '');
 
     return <String, String>{
@@ -739,6 +743,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       'address': s(e['address']),
       'model': s(e['model']),
       'color': s(e['color']),
+      if (colors.isNotEmpty) 'colors': colors.join('|'),
+      'count': s(e['count']).isNotEmpty ? s(e['count']) : '1',
       'price': s(e['price']),
       'shipping': s(e['shipping']).isNotEmpty ? s(e['shipping']) : '0',
       'discount': s(e['discount']).isNotEmpty ? s(e['discount']) : '0',
@@ -770,6 +776,37 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       return colorRaw.trim();
     }
 
+    Map<String, int> orderColorCounts(Map<String, String> o) {
+      final count = _parseIntSafe(o['count'] ?? '1');
+      final safeCount = count <= 0 ? 1 : count;
+      final baseColor = normalizeColor((o['color'] ?? '').trim());
+
+      final colorsRaw = (o['colors'] ?? '').trim();
+      final parts = colorsRaw
+          .split('|')
+          .map((x) => normalizeColor(x))
+          .where((x) => x.isNotEmpty)
+          .toList();
+
+      final counts = <String, int>{};
+      if (parts.isNotEmpty) {
+        for (final c in parts.take(safeCount)) {
+          counts[c] = (counts[c] ?? 0) + 1;
+        }
+        // If count > colors list, fill remainder using baseColor (if any)
+        final remaining = safeCount - parts.take(safeCount).length;
+        if (remaining > 0 && baseColor.isNotEmpty) {
+          counts[baseColor] = (counts[baseColor] ?? 0) + remaining;
+        }
+        return counts;
+      }
+
+      if (baseColor.isNotEmpty) {
+        counts[baseColor] = safeCount;
+      }
+      return counts;
+    }
+
     final tempHome = _cloneColorStock(homeColorStock);
     final stockErrors = <String>[];
     final repeatHints = <String>[];
@@ -780,22 +817,49 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       final modelKey = _normalizeModelFromAi(modelKeyRaw);
       final colorKeyRaw = (o['color'] ?? '').trim();
       final colorKey = normalizeColor(colorKeyRaw);
-      final qty = int.tryParse((o['count'] ?? o['qty'] ?? '1').toString()) ?? 1;
-      final safeQty = qty <= 0 ? 1 : qty;
 
-      if (modelKey.isEmpty || colorKey.isEmpty || !_stockModels.containsKey(modelKey) || !_stockModels[modelKey]!.contains(colorKey)) {
-        stockErrors.add("❌ الـ AI لم يستطع استنتاج الموديل/اللون للعميل: ${o['name'] ?? '-'}");
+      if (modelKey.isEmpty || !_stockModels.containsKey(modelKey)) {
+        stockErrors.add("❌ الـ AI لم يستطع استنتاج الموديل للعميل: ${o['name'] ?? '-'}");
         continue;
       }
 
-      final available = tempHome[modelKey]?[colorKey] ?? 0;
-      if (available < safeQty) {
-        stockErrors.add("⚠️ مخزن البيت غير كافي: $modelKey ($colorKey) للعميل ${o['name']} (مطلوب $safeQty / متاح $available)");
+      final colorCounts = orderColorCounts(o);
+      if (colorCounts.isEmpty) {
+        stockErrors.add("❌ الـ AI لم يستطع استنتاج اللون للعميل: ${o['name'] ?? '-'}");
         continue;
       }
 
-      tempHome[modelKey]![colorKey] = available - safeQty;
-      deductedSummary[modelKey]![colorKey] = (deductedSummary[modelKey]![colorKey] ?? 0) + safeQty;
+      bool valid = true;
+      for (final c in colorCounts.keys) {
+        if (!_stockModels[modelKey]!.contains(c)) {
+          valid = false;
+          break;
+        }
+      }
+      if (!valid) {
+        stockErrors.add("❌ لون غير صالح للموديل ($modelKey) للعميل: ${o['name'] ?? '-'}");
+        continue;
+      }
+
+      for (final entry in colorCounts.entries) {
+        final c = entry.key;
+        final need = entry.value;
+        final available = tempHome[modelKey]?[c] ?? 0;
+        if (available < need) {
+          stockErrors.add("⚠️ مخزن البيت غير كافي: $modelKey ($c) للعميل ${o['name']} (مطلوب $need / متاح $available)");
+          valid = false;
+          break;
+        }
+      }
+      if (!valid) continue;
+
+      for (final entry in colorCounts.entries) {
+        final c = entry.key;
+        final need = entry.value;
+        final available = tempHome[modelKey]?[c] ?? 0;
+        tempHome[modelKey]![c] = available - need;
+        deductedSummary[modelKey]![c] = (deductedSummary[modelKey]![c] ?? 0) + need;
+      }
 
       final existingCustomer = _findExistingCustomer(o);
       if (existingCustomer != null) {
@@ -1687,16 +1751,41 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     Map<String, Map<String, int>> exactToDeduct = _createDefaultColorStock();
     List<Map<String, String>> ordersToMark = [];
 
-    for (var o in orders) {
-      if (o['status'] == 'delivered' && o['deducted_main'] != 'true') {
-        final m = o['model'] ?? '';
-        final c = o['color'] ?? '';
-        if (exactToDeduct.containsKey(m) && exactToDeduct[m]!.containsKey(c)) {
-          exactToDeduct[m]![c] = (exactToDeduct[m]![c] ?? 0) + 1;
-          ordersToMark.add(o);
+      for (var o in orders) {
+        if (o['status'] == 'delivered' && o['deducted_main'] != 'true') {
+        final m = _normalizeModelFromAi(o['model'] ?? '');
+        if (!exactToDeduct.containsKey(m)) continue;
+
+        final colorsRaw = (o['colors'] ?? '').trim();
+        final count = _parseIntSafe(o['count'] ?? '1');
+        final safeCount = count <= 0 ? 1 : count;
+        final baseColor = _normalizeArabicName(o['color'] ?? '');
+
+        List<String> parts = colorsRaw
+            .split('|')
+            .map((x) => _normalizeArabicName(x))
+            .where((x) => x.isNotEmpty)
+            .toList();
+        if (parts.isEmpty && baseColor.isNotEmpty) {
+          parts = List.filled(safeCount, baseColor);
+        } else if (parts.length < safeCount && baseColor.isNotEmpty) {
+          parts.addAll(List.filled(safeCount - parts.length, baseColor));
+        }
+
+        var any = false;
+        for (final cNorm in parts.take(safeCount)) {
+          // Convert normalized color back to known keys by matching contains
+          final known = _stockModels[m]!.firstWhere(
+            (k) => _normalizeArabicName(k) == cNorm,
+            orElse: () => '',
+          );
+          if (known.isEmpty) continue;
+          exactToDeduct[m]![known] = (exactToDeduct[m]![known] ?? 0) + 1;
+          any = true;
+        }
+        if (any) ordersToMark.add(o);
         }
       }
-    }
 
     setState(() {
       _smartDeduct('15 Pro Max', s15, exactToDeduct['15 Pro Max']!);

@@ -53,9 +53,29 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     final req = _defaultCounts;
     for (final o in _orders) {
       final m = (o['model'] ?? '').trim();
-      final c = (o['color'] ?? '').trim();
-      if (req.containsKey(m) && req[m]!.containsKey(c)) {
-        req[m]![c] = (req[m]![c] ?? 0) + 1;
+      if (!req.containsKey(m)) continue;
+
+      final count = int.tryParse((o['count'] ?? '1').trim()) ?? 1;
+      final safeCount = count <= 0 ? 1 : count;
+
+      final baseColor = (o['color'] ?? '').trim();
+      final colorsRaw = (o['colors'] ?? '').trim();
+      final parts = colorsRaw.split('|').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+
+      final effective = <String>[];
+      if (parts.isNotEmpty) {
+        effective.addAll(parts.take(safeCount));
+        if (effective.length < safeCount && baseColor.isNotEmpty) {
+          effective.addAll(List.filled(safeCount - effective.length, baseColor));
+        }
+      } else if (baseColor.isNotEmpty) {
+        effective.addAll(List.filled(safeCount, baseColor));
+      }
+
+      for (final c in effective) {
+        if (req[m]!.containsKey(c)) {
+          req[m]![c] = (req[m]![c] ?? 0) + 1;
+        }
       }
     }
     return req;
@@ -141,6 +161,10 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                 final discount = (o['discount'] ?? '0').trim();
                 final confidence = _confidenceOf(o);
                 final missing = _missingOf(o);
+                final count = int.tryParse((o['count'] ?? '1').trim()) ?? 1;
+                final safeCount = count <= 0 ? 1 : count;
+                final colorsRaw = (o['colors'] ?? '').trim();
+                final colorsList = colorsRaw.split('|').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
@@ -198,6 +222,22 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                           "ناقص: ${missing.join('، ')}",
                           textAlign: TextAlign.right,
                           style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                      if (safeCount > 1) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          "العدد: $safeCount",
+                          textAlign: TextAlign.right,
+                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                      if (colorsList.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          "الألوان: ${colorsList.join('، ')}",
+                          textAlign: TextAlign.right,
+                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w700),
                         ),
                       ],
                       const SizedBox(height: 8),
