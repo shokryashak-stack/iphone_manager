@@ -763,6 +763,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     final colors = (e['colors'] is List)
         ? (e['colors'] as List).map((x) => s(x)).where((x) => x.isNotEmpty).toList()
         : <String>[];
+    final models = (e['models'] is List)
+        ? (e['models'] as List).map((x) => s(x)).where((x) => x.isNotEmpty).toList()
+        : <String>[];
 
     final phone = s(e['phone']).isNotEmpty ? s(e['phone']) : (phones.isNotEmpty ? phones.first : '');
 
@@ -773,6 +776,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       if (phones.length > 1) 'phones': phones.join(','),
       'address': s(e['address']),
       'model': s(e['model']),
+      if (models.isNotEmpty) 'models': models.join('|'),
       'color': s(e['color']),
       if (colors.isNotEmpty) 'colors': colors.join('|'),
       'count': s(e['count']).isNotEmpty ? s(e['count']) : '1',

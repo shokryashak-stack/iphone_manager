@@ -293,6 +293,23 @@ function normalizeModelNameAny(modelRaw) {
   return d ? `${d} Pro Max` : "";
 }
 
+function extractNormalizedModels(textRaw, count) {
+  const text = normalizeSpaces(normalizeNewlines(stripBidi(normalizeArabicDigits(stripDiacritics(String(textRaw || ""))))));
+  const digits = [];
+  const re = /(?:ايفون|iphone)?\s*(15|16|17)\s*(?:pro|max|برو|ماكس)?/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const d = m[1];
+    if (d === "15" || d === "16" || d === "17") digits.push(d);
+  }
+  const out = digits.map((d) => `${d} Pro Max`);
+  const safeCount = Number.isInteger(count) && count > 0 ? count : 1;
+  if (!out.length) return [];
+  const filled = out.slice(0, safeCount);
+  while (filled.length < safeCount) filled.push(out[0]);
+  return filled;
+}
+
 function normalizeColorNameAny(colorRaw) {
   const s = normalizeSpaces(stripDiacritics(String(colorRaw || ""))).toLowerCase();
   if (!s) return "";
@@ -439,8 +456,9 @@ function parseWhatsAppBlockRuleBased(blockRaw) {
   }
 
   const count = extractCount(textNoPhones);
+  const models = extractNormalizedModels(textNoPhones, count);
   const modelDigit = detectModelFromOrderText(textNoPhones);
-  const model = modelDigit ? `${modelDigit} Pro Max` : "";
+  const model = models[0] || (modelDigit ? `${modelDigit} Pro Max` : "");
   const colors = extractNormalizedColors(textDigits);
   const color = colors[0] || normalizeColorNameAny(textDigits);
 
@@ -466,6 +484,7 @@ function parseWhatsAppBlockRuleBased(blockRaw) {
     model,
     color,
     count,
+    ...(models.length ? { models } : {}),
     ...(colors.length ? { colors } : {}),
     price: price ? String(price) : "",
     discount: String(discount || 0),
@@ -479,7 +498,15 @@ function normalizeParsedOrder(obj) {
   const name = normalizeSpaces(obj?.name);
   const governorate = normalizeSpaces(obj?.governorate);
   const address = normalizeSpaces(obj?.address);
-  const model = normalizeModelNameAny(obj?.model);
+  const countN = Number.parseInt(normalizeArabicDigits(obj?.count), 10);
+  const count = Number.isInteger(countN) && countN > 0 ? countN : 1;
+
+  const modelsRaw = Array.isArray(obj?.models) ? obj.models : null;
+  const models = modelsRaw ? modelsRaw.map(normalizeModelNameAny).filter(Boolean) : [];
+  const finalModels = models.length ? models.slice(0, count) : [];
+  while (finalModels.length && finalModels.length < count) finalModels.push(finalModels[0]);
+
+  const model = normalizeModelNameAny(obj?.model) || (finalModels[0] || "");
   const colorsRaw = Array.isArray(obj?.colors) ? obj.colors : null;
   const colors = colorsRaw ? colorsRaw.map(normalizeColorNameAny).filter(Boolean) : [];
   const color = normalizeColorNameAny(obj?.color) || (colors[0] || "");
@@ -487,9 +514,6 @@ function normalizeParsedOrder(obj) {
   const phones = Array.from(
     new Set([phone, ...(Array.isArray(obj?.phones) ? obj.phones : [])].map(normalizePhone).filter(Boolean))
   );
-
-  const countN = Number.parseInt(normalizeArabicDigits(obj?.count), 10);
-  const count = Number.isInteger(countN) && countN > 0 ? countN : 1;
   const finalColors = colors.length ? colors.slice(0, count) : [];
 
   const priceN = Number.parseInt(normalizeArabicDigits(obj?.price), 10);
@@ -526,6 +550,7 @@ function normalizeParsedOrder(obj) {
     ...(phones.length > 1 ? { phones } : {}),
     address,
     model,
+    ...(finalModels.length ? { models: finalModels } : {}),
     color: color || (finalColors[0] || ""),
     ...(finalColors.length ? { colors: finalColors } : {}),
     count,
@@ -612,13 +637,14 @@ Normalization rules (very important):
 - count MUST be integer >= 1
 - If the order requests multiple devices, set count accordingly.
 - If multiple colors are mentioned for a multi-device order, set "colors" as an array of normalized colors (length should be <= count).
+- If multiple models are mentioned for a multi-device order, set "models" as an array of normalized models (length should be <= count).
 - price, shipping, discount are integers as strings (no currency symbols)
 - phone should be an Egyptian mobile number (11 digits starting with 01) without spaces or +20
 - If there are multiple phones, return "phones" as array of normalized phones, and set "phone" as the first.
 - cod_total = price - discount + shipping
 
 Fields to output per order:
-{ "name","governorate","address","phone","phones","model","color","colors","count","price","shipping","discount","cod_total","notes" }
+{ "name","governorate","address","phone","phones","model","models","color","colors","count","price","shipping","discount","cod_total","notes" }
 
 Input WhatsApp text:
 ${text}
