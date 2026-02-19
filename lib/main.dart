@@ -1872,6 +1872,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               final order = orders[oi];
               final status = _normalizeArabicName(order['status'] ?? '');
               if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
+              if ((order['sheet_matched_pending'] ?? '') == 'true') continue;
 
               final nameScore = _nameMatchScore(sheetName, order['name'] ?? '');
               final sheetGovNorm = _normalizeArabicName(sheetGov);
@@ -1966,8 +1967,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
             if (resolvedIndex != null && resolvedScore >= 0.62) {
               final bestMatchedIndex = resolvedIndex;
               usedOrderIndices.add(bestMatchedIndex);
-              orders[bestMatchedIndex]['status'] = 'delivered';
-              orders[bestMatchedIndex]['delivered_at'] = DateTime.now().toIso8601String();
+              orders[bestMatchedIndex]['sheet_matched_pending'] = 'true';
+              orders[bestMatchedIndex]['sheet_matched_at'] = DateTime.now().toIso8601String();
               matchedDelivered++;
               matchedRows.add({
                 'sheet_name': sheetName,
@@ -2031,7 +2032,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         _lastSheetAnalysisAt = DateTime.now().toIso8601String();
       });
       await _saveData();
-      await _addLogEntry("مطابقة تسليم الشيت", "مطابقات مؤكدة: $matchedDelivered\nحالات غير مؤكدة: $unmatchedDelivered");
+      await _addLogEntry("مطابقة تسليم الشيت", "مطابقات بانتظار التأكيد: $matchedDelivered\nحالات غير مؤكدة: $unmatchedDelivered");
       _showResultDialog(count + cashDeliveredCount, totalDeductions, totalNet, auto15 + cash15, auto16 + cash16, auto17 + cash17);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("? خطأ: $e")));
@@ -2371,7 +2372,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     List<Map<String, String>> ordersToMark = [];
 
     for (var o in orders) {
-      if (o['status'] == 'delivered' && o['deducted_main'] != 'true') {
+      final isDelivered = _normalizeArabicName(o['status'] ?? '') == 'delivered';
+      final isPendingFromSheet = (o['sheet_matched_pending'] ?? '') == 'true';
+      if ((isDelivered || isPendingFromSheet) && o['deducted_main'] != 'true') {
         final baseModel = _normalizeModelFromAi(o['model'] ?? '');
         final modelsRaw = (o['models'] ?? '').trim();
         final modelParts = modelsRaw
@@ -2419,6 +2422,11 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       _smartDeduct('17 Pro Max', s17, exactToDeduct['17 Pro Max']!);
 
       for (var o in ordersToMark) {
+        if ((o['sheet_matched_pending'] ?? '') == 'true') {
+          o['status'] = 'delivered';
+          o['delivered_at'] = DateTime.now().toIso8601String();
+          o['sheet_matched_pending'] = 'false';
+        }
         o['deducted_main'] = 'true';
       }
 
