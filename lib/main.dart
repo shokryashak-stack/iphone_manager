@@ -1522,6 +1522,84 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     return inter / union;
   }
 
+  String _normalizeGovernorateForMatch(String input) {
+    var s = _normalizeArabicName(input);
+    s = s.replaceAll(RegExp(r'[^a-z0-9\u0600-\u06FF\s]'), ' ');
+    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    s = s.replaceAll('محافظه', '').replaceAll('محافظة', '').replaceAll('مدينه', '').replaceAll('مدينة', '').trim();
+    s = s.replaceAll(' ', '');
+    if (s == 'بورسعيد' || s == 'بورسعيد') return 'بورسعيد';
+    if (s == 'كفرالشيخ' || s == 'كفرشيخ') return 'كفرالشيخ';
+    if (s == 'الدقهليه' || s == 'دقهليه') return 'الدقهلية';
+    if (s == 'الاسماعيليه' || s == 'اسماعيليه') return 'الاسماعيلية';
+    return s;
+  }
+
+  double _governorateMatchScore(String sheetGov, String orderGov) {
+    final a = _normalizeGovernorateForMatch(sheetGov);
+    final b = _normalizeGovernorateForMatch(orderGov);
+    if (a.isEmpty || b.isEmpty) return 0.0;
+    if (a == b) return 1.0;
+    if (a.contains(b) || b.contains(a)) return 0.85;
+    return 0.0;
+  }
+
+  Map<String, int> _extractModelCountsFromOrder(Map<String, String> order) {
+    final out = <String, int>{'15': 0, '16': 0, '17': 0};
+    final baseModel = _normalizeModelFromAi(order['model'] ?? '');
+    final modelsRaw = (order['models'] ?? '').trim();
+    final modelParts = modelsRaw
+        .split('|')
+        .map((x) => _normalizeModelFromAi(x))
+        .where((x) => x.isNotEmpty)
+        .toList();
+
+    final count = _parseIntSafe(order['count'] ?? '1');
+    final safeCount = count <= 0 ? 1 : count;
+
+    for (int i = 0; i < safeCount; i++) {
+      final m = (i < modelParts.length && modelParts[i].isNotEmpty) ? modelParts[i] : baseModel;
+      if (m.startsWith('15')) out['15'] = (out['15'] ?? 0) + 1;
+      if (m.startsWith('16')) out['16'] = (out['16'] ?? 0) + 1;
+      if (m.startsWith('17')) out['17'] = (out['17'] ?? 0) + 1;
+    }
+
+    if ((out['15'] ?? 0) + (out['16'] ?? 0) + (out['17'] ?? 0) == 0) {
+      if (baseModel.startsWith('15')) out['15'] = safeCount;
+      if (baseModel.startsWith('16')) out['16'] = safeCount;
+      if (baseModel.startsWith('17')) out['17'] = safeCount;
+    }
+    return out;
+  }
+
+  Map<String, int> _inferCountsFromSheetAmount(double amount) {
+    final out = <String, int>{'15': 0, '16': 0, '17': 0};
+    if (amount <= 0) return out;
+
+    final prices = <String, double>{'15': 5500, '16': 6000, '17': 6500};
+    double bestDiff = 1e18;
+    String bestModel = '';
+    int bestCount = 1;
+
+    for (int count = 1; count <= 4; count++) {
+      prices.forEach((model, price) {
+        final expected = price * count;
+        final diff = (amount - expected).abs();
+        final tolerance = count == 1 ? 900.0 : (count * 300.0);
+        if (diff <= tolerance && diff < bestDiff) {
+          bestDiff = diff;
+          bestModel = model;
+          bestCount = count;
+        }
+      });
+    }
+
+    if (bestModel.isNotEmpty) {
+      out[bestModel] = bestCount;
+    }
+    return out;
+  }
+
   int _parseIntSafe(String v) => int.tryParse(_toWesternDigits(v).replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
   Future<String> _deleteOrderAction(String name, String? governorate) async {
@@ -1801,6 +1879,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         ['destination', 'governorate', 'city', 'المحافظة', 'المحافظه'],
         ['destination', 'governorate', 'city', 'محافظة', 'المحافظه'],
       );
+      int receiverPhoneIndex = findHeaderExactPriority(
+        ['receiver mobile', 'receiver phone', 'consignee mobile', 'consignee phone', 'mobile', 'phone', 'رقم الهاتف', 'تليفون'],
+        ['receiver', 'consignee', 'mobile', 'phone', 'هاتف', 'تليفون'],
+      );
       final int signingStatusIndex = findHeaderExactPriority(
         ['signing status', 'sign status', 'delivery status', 'حالة التسليم'],
         ['sign', 'status', 'delivery'],
@@ -1860,6 +1942,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
             final sheetName = (cellAt(receiverNameIndex)?.toString() ?? '').trim();
             final sheetGov = (cellAt(destinationIndex)?.toString() ?? '').trim();
+            final sheetPhone = _normalizePhone((cellAt(receiverPhoneIndex)?.toString() ?? '').trim());
 
             var bestIndex = -1;
             var bestScore = 0.0;
@@ -1875,16 +1958,14 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               if ((order['sheet_matched_pending'] ?? '') == 'true') continue;
 
               final nameScore = _nameMatchScore(sheetName, order['name'] ?? '');
-              final sheetGovNorm = _normalizeArabicName(sheetGov);
-              final orderGovNorm = _normalizeArabicName(order['governorate'] ?? '');
-              final govScore = sheetGovNorm.isNotEmpty &&
-                      orderGovNorm.isNotEmpty &&
-                      (sheetGovNorm.contains(orderGovNorm) || orderGovNorm.contains(sheetGovNorm))
-                  ? 1.0
-                  : 0.0;
+              final govScore = _governorateMatchScore(sheetGov, order['governorate'] ?? '');
+              final sheetGovNorm = _normalizeGovernorateForMatch(sheetGov);
+              final orderGovNorm = _normalizeGovernorateForMatch(order['governorate'] ?? '');
               final govMismatch = sheetGovNorm.isNotEmpty && orderGovNorm.isNotEmpty && govScore == 0.0;
               candidateGovMismatch[oi] = govMismatch;
               candidateNameScore[oi] = nameScore;
+              final orderPhones = _orderPhones(order).toSet();
+              final phoneScore = (sheetPhone.isNotEmpty && orderPhones.contains(sheetPhone)) ? 1.0 : 0.0;
               final codTotal = _parseIntSafe(order['cod_total'] ?? '');
               final basePrice = _parseIntSafe(order['price'] ?? '');
               final shippingFee = _parseIntSafe(order['shipping'] ?? '');
@@ -1920,7 +2001,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                 continue;
               }
 
-              var score = (nameScore * 0.5) + (govScore * 0.25) + (amountScore * 0.25);
+              var score = (nameScore * 0.45) + (govScore * 0.20) + (amountScore * 0.20) + (phoneScore * 0.15);
               if (govMismatch) {
                 score *= 0.8;
               }
@@ -1973,6 +2054,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               matchedRows.add({
                 'sheet_name': sheetName,
                 'sheet_governorate': sheetGov,
+                'sheet_phone': sheetPhone,
                 'sheet_amount': amount.toStringAsFixed(0),
                 'order_name': orders[bestMatchedIndex]['name'] ?? '',
                 'order_governorate': orders[bestMatchedIndex]['governorate'] ?? '',
@@ -1980,25 +2062,26 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                 'order_color': orders[bestMatchedIndex]['color'] ?? '',
                 'score': resolvedScore.toStringAsFixed(2),
               });
-              final modelDigit = _orderModelDigit(orders[bestMatchedIndex]);
-              if (modelDigit == '15') auto15++;
-              if (modelDigit == '16') auto16++;
-              if (modelDigit == '17') auto17++;
+              final countsByModel = _extractModelCountsFromOrder(orders[bestMatchedIndex]);
+              auto15 += countsByModel['15'] ?? 0;
+              auto16 += countsByModel['16'] ?? 0;
+              auto17 += countsByModel['17'] ?? 0;
             } else {
               unmatchedDelivered++;
+              final inferred = _inferCountsFromSheetAmount(amount);
               unmatchedRows.add({
                 'sheet_name': sheetName,
                 'sheet_governorate': sheetGov,
+                'sheet_phone': sheetPhone,
                 'sheet_amount': amount.toStringAsFixed(0),
                 'reason': 'no_confident_match',
+                'inferred_15': (inferred['15'] ?? 0).toString(),
+                'inferred_16': (inferred['16'] ?? 0).toString(),
+                'inferred_17': (inferred['17'] ?? 0).toString(),
               });
-              if (amount >= 5000 && amount <= 5500) {
-                auto15++;
-              } else if (amount >= 5600 && amount <= 6000) {
-                auto16++;
-              } else if (amount >= 6100 && amount <= 6500) {
-                auto17++;
-              }
+              auto15 += inferred['15'] ?? 0;
+              auto16 += inferred['16'] ?? 0;
+              auto17 += inferred['17'] ?? 0;
             }
           }
         }
@@ -2221,6 +2304,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
             children: [
               Text("الاسم (الشيت): ${r['sheet_name'] ?? '-'}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700)),
               Text("المحافظة (الشيت): ${r['sheet_governorate'] ?? '-'}", textAlign: TextAlign.right),
+              if ((r['sheet_phone'] ?? '').trim().isNotEmpty) Text("الهاتف (الشيت): ${r['sheet_phone']}", textAlign: TextAlign.right),
               Text("المبلغ: ${r['sheet_amount'] ?? '-'}", textAlign: TextAlign.right),
               if (matchedMode) ...[
                 const SizedBox(height: 4),
@@ -2231,6 +2315,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               ] else ...[
                 const SizedBox(height: 4),
                 Text("السبب: ${r['reason'] ?? 'غير محدد'}", textAlign: TextAlign.right),
+                if (((r['inferred_15'] ?? '0') != '0') || ((r['inferred_16'] ?? '0') != '0') || ((r['inferred_17'] ?? '0') != '0'))
+                  Text("تقدير الأجهزة: 15=${r['inferred_15'] ?? '0'}، 16=${r['inferred_16'] ?? '0'}، 17=${r['inferred_17'] ?? '0'}", textAlign: TextAlign.right),
               ],
             ],
           ),
