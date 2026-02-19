@@ -18,6 +18,6 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: IphoneProfitCalculator()));
 
     // Verify that the app title is present.
-    expect(find.text('حاسبة البيزنس 📱'), findsOneWidget);
+    expect(find.text('حاسبة البيزنس الاحترافية'), findsOneWidget);
   });
 }

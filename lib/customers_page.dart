@@ -6,6 +6,7 @@ typedef NormalizePhonesFn = Future<int> Function();
 typedef EditCustomerFn = Future<int?> Function(Map<String, String> customer);
 typedef DeleteCustomerFn = Future<int?> Function(Map<String, String> customer);
 typedef DeleteSelectedCustomersFn = Future<int?> Function(Set<String> customerKeys);
+typedef SetCustomerStatusOverrideFn = Future<void> Function(String customerKey, String? statusCode);
 
 class CustomersPage extends StatefulWidget {
   const CustomersPage({
@@ -16,6 +17,7 @@ class CustomersPage extends StatefulWidget {
     required this.editCustomer,
     required this.deleteCustomer,
     required this.deleteSelectedCustomers,
+    required this.setCustomerStatusOverride,
   });
 
   final GetCustomersFn getCustomers;
@@ -24,6 +26,7 @@ class CustomersPage extends StatefulWidget {
   final EditCustomerFn editCustomer;
   final DeleteCustomerFn deleteCustomer;
   final DeleteSelectedCustomersFn deleteSelectedCustomers;
+  final SetCustomerStatusOverrideFn setCustomerStatusOverride;
 
   @override
   State<CustomersPage> createState() => _CustomersPageState();
@@ -69,6 +72,86 @@ class _CustomersPageState extends State<CustomersPage> {
   }
 
   String _onlyDigits(String s) => s.replaceAll(RegExp(r'[^0-9]'), '');
+
+  Color _statusColor(String code, bool isDark) {
+    switch (code) {
+      case 'delivered':
+        return Colors.green;
+      case 'review':
+        return Colors.orange;
+      case 'returned':
+        return Colors.redAccent;
+      case 'canceled':
+        return isDark ? Colors.white54 : Colors.black45;
+      case 'in_transit':
+      default:
+        return Colors.blueAccent;
+    }
+  }
+
+  Future<void> _changeStatusForCustomer(String customerKey, String currentLabel) async {
+    final picked = await showModalBottomSheet<String?>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text("تعديل الحالة", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text("الحالة الحالية: $currentLabel", textAlign: TextAlign.right),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.auto_mode_rounded),
+                title: const Text("تلقائي"),
+                subtitle: const Text("يرجع لحساب الحالة تلقائيًا"),
+                onTap: () => Navigator.pop(ctx, null),
+              ),
+              ListTile(
+                leading: const Icon(Icons.local_shipping_rounded),
+                title: const Text("جاري التوصيل"),
+                onTap: () => Navigator.pop(ctx, 'in_transit'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.check_circle_rounded, color: Colors.green),
+                title: const Text("تم التسليم"),
+                onTap: () => Navigator.pop(ctx, 'delivered'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                title: const Text("راجع"),
+                onTap: () => Navigator.pop(ctx, 'review'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.assignment_return_rounded, color: Colors.redAccent),
+                title: const Text("مرتجع"),
+                onTap: () => Navigator.pop(ctx, 'returned'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel_rounded),
+                title: const Text("ملغي"),
+                onTap: () => Navigator.pop(ctx, 'canceled'),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // canceled sheet
+    if (!mounted) return;
+    if (picked == null) {
+      await widget.setCustomerStatusOverride(customerKey, null);
+    } else {
+      await widget.setCustomerStatusOverride(customerKey, picked);
+    }
+    if (!mounted) return;
+    await _refresh();
+  }
 
   void _applyFilter() {
     final qRaw = _searchCtrl.text.trim();
@@ -220,6 +303,10 @@ class _CustomersPageState extends State<CustomersPage> {
                       final cnt = c['orders_count'] ?? '0';
                       final lastAt = c['last_order_at'] ?? '';
                       final extraPhones = (c['phones'] ?? '').trim();
+                      final statusLabel = (c['status_label'] ?? '').trim();
+                      final statusSummary = (c['status_summary'] ?? '').trim();
+                      final statusCode = (c['status_last'] ?? '').trim();
+                      final statusManual = (c['status_manual'] ?? '').trim() == 'true';
                       final key = widget.customerKey(c);
                       final selected = _selectedKeys.contains(key);
 
@@ -298,6 +385,56 @@ class _CustomersPageState extends State<CustomersPage> {
                               Text("المحافظة: ${c['governorate'] ?? '-'}"),
                               Text("العنوان: ${(c['address'] ?? '').isEmpty ? '-' : c['address']!}"),
                               Text("عدد الأوردرات: $cnt"),
+                              if (statusLabel.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: () => _changeStatusForCustomer(key, statusLabel),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 6),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          if (statusManual)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
+                                                borderRadius: BorderRadius.circular(99),
+                                              ),
+                                              child: const Text("يدوي", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                                            ),
+                                          if (statusManual) const SizedBox(width: 8),
+                                          const Icon(Icons.edit_rounded, size: 18),
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              "الحالة: $statusLabel",
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(fontWeight: FontWeight.w800, color: _statusColor(statusCode, isDark)),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              color: _statusColor(statusCode, isDark),
+                                              borderRadius: BorderRadius.circular(99),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (statusSummary.isNotEmpty)
+                                Text(
+                                  "ملخص: $statusSummary",
+                                  textAlign: TextAlign.right,
+                                  style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w600),
+                                ),
                               if (lastAt.isNotEmpty) Text("آخر أوردر: ${_formatIso(lastAt)}"),
                             ],
                           ),
@@ -311,4 +448,3 @@ class _CustomersPageState extends State<CustomersPage> {
     );
   }
 }
-

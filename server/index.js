@@ -30,7 +30,7 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     service: "iphone_manager_ai_proxy",
-    endpoints: ["/health", "/ai/command", "/ai/parse_orders"],
+    endpoints: ["/health", "/ai/command", "/ai/parse_orders", "/ai/match_delivery"],
   });
 });
 
@@ -323,6 +323,22 @@ function normalizeColorNameAny(colorRaw) {
   return "";
 }
 
+const STOCK_COLORS_BY_MODEL = {
+  "15 Pro Max": ["سلفر", "اسود", "ازرق"],
+  "16 Pro Max": ["سلفر", "دهبي", "اسود"],
+  "17 Pro Max": ["برتقالي", "سلفر", "اسود", "دهبي", "تيتانيوم", "كحلي"],
+};
+
+function normalizeColorForModel(modelKey, colorRaw) {
+  const normalized = normalizeColorNameAny(colorRaw);
+  if (!normalized) return "";
+  const allowed = STOCK_COLORS_BY_MODEL[modelKey] || [];
+  if (allowed.includes(normalized)) return normalized;
+  if (normalized === "ازرق" && allowed.includes("كحلي")) return "كحلي";
+  if (normalized === "كحلي" && allowed.includes("ازرق")) return "ازرق";
+  return normalized;
+}
+
 function extractNormalizedColors(textRaw) {
   const text = normalizeNewlines(stripBidi(normalizeArabicDigits(stripDiacritics(String(textRaw || "")))));
   const colors = [];
@@ -516,6 +532,20 @@ function normalizeParsedOrder(obj) {
   );
   const finalColors = colors.length ? colors.slice(0, count) : [];
 
+  const modelsForMap = finalModels.length ? finalModels : (model ? Array(count).fill(model) : []);
+  let resolvedColors = [];
+  for (let i = 0; i < count; i++) {
+    const m = modelsForMap[i] || model;
+    const cRaw = (i < finalColors.length && finalColors[i]) ? finalColors[i] : (color || "");
+    const mapped = m ? normalizeColorForModel(m, cRaw) : normalizeColorNameAny(cRaw);
+    resolvedColors.push(mapped || "");
+  }
+  const resolvedColor = (resolvedColors.find((x) => x) || (model ? normalizeColorForModel(model, color) : color) || "");
+  if (resolvedColor) {
+    resolvedColors = resolvedColors.map((x) => x || resolvedColor);
+  }
+  const shouldIncludeColors = count > 1 && resolvedColors.some((x) => x);
+
   const priceN = Number.parseInt(normalizeArabicDigits(obj?.price), 10);
   const discountN = Number.parseInt(normalizeArabicDigits(obj?.discount), 10);
   const shippingN = Number.parseInt(normalizeArabicDigits(obj?.shipping), 10);
@@ -530,12 +560,12 @@ function normalizeParsedOrder(obj) {
   if (!governorate) missing.push("governorate");
   if (!address) missing.push("address");
   if (!model) missing.push("model");
-  if (!color) missing.push("color");
+  if (!resolvedColor) missing.push("color");
   if (!price) missing.push("price");
 
   let confidence = 0;
   if (model) confidence += 0.28;
-  if (color) confidence += 0.22;
+  if (resolvedColor) confidence += 0.22;
   if (phone) confidence += 0.18;
   if (name) confidence += 0.12;
   if (governorate) confidence += 0.08;
@@ -551,8 +581,8 @@ function normalizeParsedOrder(obj) {
     address,
     model,
     ...(finalModels.length ? { models: finalModels } : {}),
-    color: color || (finalColors[0] || ""),
-    ...(finalColors.length ? { colors: finalColors } : {}),
+    color: resolvedColor || "",
+    ...(shouldIncludeColors ? { colors: resolvedColors } : {}),
     count,
     price: price ? String(price) : "",
     discount: String(discount || 0),
@@ -673,6 +703,76 @@ ${text}
     return res.status(500).json({
       error: error?.message || "Server error",
     });
+  }
+});
+
+app.post("/ai/match_delivery", async (req, res) => {
+  try {
+    const row = req.body?.row || {};
+    const candidates = Array.isArray(req.body?.candidates) ? req.body.candidates : [];
+    if (!candidates.length) {
+      return res.json({ match_candidate_id: -1, confidence: 0, reason: "no_candidates" });
+    }
+
+    const compact = candidates.slice(0, 8).map((c) => ({
+      candidate_id: Number(c?.candidate_id),
+      name: normalizeSpaces(c?.name),
+      governorate: normalizeSpaces(c?.governorate),
+      phone: normalizePhone(c?.phone),
+      phones: Array.isArray(c?.phones) ? c.phones.map(normalizePhone).filter(Boolean) : [],
+      address: normalizeSpaces(c?.address),
+      cod_total: String(c?.cod_total ?? ""),
+      price: String(c?.price ?? ""),
+      shipping: String(c?.shipping ?? ""),
+      discount: String(c?.discount ?? ""),
+      count: String(c?.count ?? "1"),
+      created_at: String(c?.created_at ?? ""),
+      status: String(c?.status ?? ""),
+    }));
+
+    const prompt = `
+You match ONE delivery-sheet row to one of candidate orders.
+Return ONLY JSON object, no markdown.
+
+Output JSON:
+{ "match_candidate_id": number, "confidence": number, "reason": string }
+
+Rules:
+- Choose match_candidate_id from provided candidate_id values only.
+- If uncertain, return -1.
+- confidence must be between 0 and 1.
+- Prefer name+governorate+amount consistency.
+- COD amount may differ due to fees/discounts by up to moderate tolerance.
+- count can indicate multi-device orders (e.g. 2 devices).
+
+Sheet row:
+${JSON.stringify({
+  receiver_name: normalizeSpaces(row?.receiver_name),
+  destination: normalizeSpaces(row?.destination),
+  cod_amount: String(row?.cod_amount ?? ""),
+  cod_service_fee: String(row?.cod_service_fee ?? ""),
+  shipping_fee: String(row?.shipping_fee ?? ""),
+})}
+
+Candidates:
+${JSON.stringify(compact)}
+    `.trim();
+
+    const raw = await generateWithFallbackModels(prompt);
+    const parsed = tryParseJson(raw) || {};
+    const picked = Number(parsed?.match_candidate_id);
+    const confidence = Number(parsed?.confidence);
+    const validIds = new Set(compact.map((c) => c.candidate_id).filter((x) => Number.isInteger(x)));
+    const safeId = Number.isInteger(picked) && validIds.has(picked) ? picked : -1;
+    const safeConfidence = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
+
+    return res.json({
+      match_candidate_id: safeId,
+      confidence: Number(safeConfidence.toFixed(2)),
+      reason: normalizeSpaces(parsed?.reason),
+    });
+  } catch (error) {
+    return res.json({ match_candidate_id: -1, confidence: 0, reason: "fallback_no_match" });
   }
 });
 

@@ -31,6 +31,10 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     super.initState();
     _orders = widget.orders.map((e) => Map<String, String>.from(e)).toList();
     _orders.sort((a, b) => _confidenceOf(a).compareTo(_confidenceOf(b)));
+    for (final o in _orders) {
+      _ensureColorsForCount(o);
+      _normalizeOrderColorsForModels(o);
+    }
   }
 
   int _countOf(Map<String, String> o) {
@@ -64,6 +68,74 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     final raw = (o['colors'] ?? '').trim();
     if (raw.isEmpty) return <String>[];
     return raw.split('|').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+  }
+
+  String _normalizeArabic(String input) {
+    var s = input.trim().toLowerCase();
+    s = s.replaceAll(RegExp(r'\s+'), ' ');
+    s = s.replaceAll('أ', 'ا').replaceAll('إ', 'ا').replaceAll('آ', 'ا').replaceAll('ة', 'ه').replaceAll('ى', 'ي');
+    return s;
+  }
+
+  String _normalizeColorNameAny(String colorRaw) {
+    final c = _normalizeArabic(colorRaw);
+    if (c.isEmpty) return '';
+    if (c.contains('سلفر') || c.contains('سيلفر') || c.contains('فضي') || c.contains('فضه') || c.contains('ابيض') || c.contains('أبيض') || c.contains('silver') || c.contains('white')) return 'سلفر';
+    if (c.contains('اسود') || c.contains('أسود') || c.contains('بلاك') || c.contains('black')) return 'اسود';
+    if (c.contains('ازرق') || c.contains('أزرق') || c.contains('blue')) return 'ازرق';
+    if (c.contains('دهبي') || c.contains('ذهبي') || c.contains('جولد') || c.contains('gold')) return 'دهبي';
+    if (c.contains('برتقالي') || c.contains('اورنج') || c.contains('اورانج') || c.contains('أورنج') || c.contains('orange')) return 'برتقالي';
+    if (c.contains('كحلي') || c.contains('كحلى') || c.contains('navy')) return 'كحلي';
+    if (c.contains('تيتانيوم') || c.contains('طبيعي') || c.contains('ناتشورال') || c.contains('natural')) return 'تيتانيوم';
+    return colorRaw.trim();
+  }
+
+  String _normalizeColorForModel(String modelKey, String colorRaw) {
+    final normalized = _normalizeColorNameAny(colorRaw).trim();
+    if (normalized.isEmpty) return '';
+
+    final allowed = widget.modelColors[modelKey] ?? const <String>[];
+    if (allowed.contains(normalized)) return normalized;
+
+    if (normalized == 'ازرق' && allowed.contains('كحلي')) return 'كحلي';
+    if (normalized == 'كحلي' && allowed.contains('ازرق')) return 'ازرق';
+
+    return normalized;
+  }
+
+  void _normalizeOrderColorsForModels(Map<String, String> o) {
+    final count = _countOf(o);
+    final baseModel = (o['model'] ?? '').trim();
+    final baseColor = (o['color'] ?? '').trim();
+
+    if (count <= 1) {
+      final mapped = baseModel.isNotEmpty ? _normalizeColorForModel(baseModel, baseColor) : _normalizeColorNameAny(baseColor);
+      if (mapped.isNotEmpty) o['color'] = mapped;
+      return;
+    }
+
+    final models = _modelsListOf(o);
+    final colors = _colorsListOf(o);
+
+    final nextModels = <String>[]..addAll(models);
+    while (nextModels.length < count) {
+      nextModels.add(baseModel);
+    }
+
+    final nextColors = <String>[]..addAll(colors);
+    while (nextColors.length < count) {
+      nextColors.add(baseColor);
+    }
+
+    for (int i = 0; i < count; i++) {
+      final m = (i < nextModels.length && nextModels[i].isNotEmpty) ? nextModels[i] : baseModel;
+      final c = (i < nextColors.length && nextColors[i].isNotEmpty) ? nextColors[i] : baseColor;
+      if (m.isEmpty) continue;
+      final mapped = _normalizeColorForModel(m, c);
+      if (mapped.isNotEmpty) nextColors[i] = mapped;
+    }
+
+    _setColorsList(o, nextColors);
   }
 
   void _setModelsList(Map<String, String> o, List<String> models) {
@@ -156,7 +228,8 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
       for (int di = 0; di < safeCount; di++) {
         final model = (di < modelParts.length && modelParts[di].isNotEmpty) ? modelParts[di] : baseModel;
         if (!req.containsKey(model)) continue;
-        final color = (di < parts.length && parts[di].isNotEmpty) ? parts[di] : baseColor;
+        final rawColor = (di < parts.length && parts[di].isNotEmpty) ? parts[di] : baseColor;
+        final color = _normalizeColorForModel(model, rawColor);
         if (color.isEmpty) continue;
         if (req[model]!.containsKey(color)) {
           req[model]![color] = (req[model]![color] ?? 0) + 1;
@@ -182,7 +255,8 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
           errs.add('❌ موديل غير معروف (جهاز ${di + 1}) للعميل: ${name.isEmpty ? '-' : name}');
           break;
         }
-        final color = (di < colors.length && colors[di].isNotEmpty) ? colors[di] : baseColor;
+        final rawColor = (di < colors.length && colors[di].isNotEmpty) ? colors[di] : baseColor;
+        final color = _normalizeColorForModel(model, rawColor);
         if (color.isEmpty || !widget.modelColors[model]!.contains(color)) {
           errs.add('❌ لون غير معروف (جهاز ${di + 1}) للعميل: ${name.isEmpty ? '-' : name}');
           break;
@@ -211,6 +285,7 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     for (final o in _orders) {
       _ensureColorsForCount(o);
+      _normalizeOrderColorsForModels(o);
     }
     final errors = _validationErrors();
 
@@ -387,6 +462,7 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                                       final base = (o['color'] ?? '').trim();
                                       final next = List<String>.filled(safeCount, base.isEmpty ? (colors.isNotEmpty ? colors.first : '') : base);
                                       _setColorsList(o, next);
+                                      _normalizeOrderColorsForModels(o);
                                     });
                                   },
                                   icon: const Icon(Icons.palette_outlined, size: 18),
@@ -417,9 +493,14 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                                     .toList(),
                                 onChanged: (v) {
                                   setState(() {
-                                    o['model'] = v ?? '';
-                                    final firstColor = (v != null && widget.modelColors[v]!.isNotEmpty) ? widget.modelColors[v]!.first : '';
-                                    o['color'] = firstColor;
+                                    final nextModel = (v ?? '').trim();
+                                    final palette = widget.modelColors[nextModel] ?? const <String>[];
+                                    final currentColor = (o['color'] ?? '').trim();
+                                    final mapped = nextModel.isNotEmpty ? _normalizeColorForModel(nextModel, currentColor) : currentColor;
+                                    final nextColor = palette.contains(mapped) ? mapped : (palette.isNotEmpty ? palette.first : '');
+
+                                    o['model'] = nextModel;
+                                    o['color'] = nextColor;
                                     o.remove('colors');
                                     o.remove('models');
                                     o['count'] = '1';
@@ -482,19 +563,26 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                                         while (nextModels.length < safeCount) {
                                           nextModels.add((o['model'] ?? '').trim());
                                         }
-                                        nextModels[ci] = (v ?? '').trim();
+                                        final nextModel = (v ?? '').trim();
+                                        nextModels[ci] = nextModel;
                                         _setModelsList(o, nextModels);
 
-                                        final palette2 = widget.modelColors[(v ?? '').trim()] ?? const <String>[];
+                                        final palette2 = widget.modelColors[nextModel] ?? const <String>[];
                                         final nextColors = _colorsListOf(o);
                                         while (nextColors.length < safeCount) {
                                           nextColors.add((o['color'] ?? '').trim());
                                         }
-                                        final fallback = palette2.isNotEmpty ? palette2.first : '';
-                                        if (fallback.isNotEmpty && !palette2.contains(nextColors[ci])) {
-                                          nextColors[ci] = fallback;
+                                        final candidate = nextModel.isNotEmpty ? _normalizeColorForModel(nextModel, nextColors[ci]) : nextColors[ci];
+                                        if (candidate.isNotEmpty && palette2.contains(candidate)) {
+                                          nextColors[ci] = candidate;
+                                        } else {
+                                          final fallback = palette2.isNotEmpty ? palette2.first : '';
+                                          if (fallback.isNotEmpty && !palette2.contains(nextColors[ci])) {
+                                            nextColors[ci] = fallback;
+                                          }
                                         }
                                         _setColorsList(o, nextColors);
+                                        _normalizeOrderColorsForModels(o);
                                       });
                                     },
                                     decoration: InputDecoration(
@@ -514,6 +602,7 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
                                         }
                                         if (v != null && v.isNotEmpty) next[ci] = v;
                                         _setColorsList(o, next);
+                                        _normalizeOrderColorsForModels(o);
                                       });
                                     },
                                     decoration: InputDecoration(

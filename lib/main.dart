@@ -83,6 +83,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     '16 Pro Max': ['سلفر', 'دهبي', 'اسود'],
     '17 Pro Max': ['برتقالي', 'سلفر', 'اسود', 'دهبي', 'تيتانيوم', 'كحلي'],
   };
+
+  static const int _reviewAfterDays = 5;
+  static const String _customerStatusOverridePrefsKey = 'customer_status_override_v1';
+  final Map<String, String> _customerStatusOverrides = {};
   
   Map<String, Map<String, int>> colorStock = {};
   Map<String, Map<String, int>> homeColorStock = {};
@@ -94,9 +98,12 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   double myShare = 0.0;
   double partnerShare = 0.0;
   double myAccountBalance = 0.0;
+  List<Map<String, String>> _lastSheetMatchedRows = <Map<String, String>>[];
+  List<Map<String, String>> _lastSheetUnmatchedRows = <Map<String, String>>[];
+  String _lastSheetAnalysisAt = '';
 
   final List<_UndoSnapshot> _undoStack = [];
-  static const int _maxUndoDepth = 15;
+  static const int _maxUndoDepth = 50;
   static const String _undoPrefsKey = 'undo_stack_v2';
 
   @override
@@ -183,7 +190,21 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
             );
         } catch (_) {}
       }
-      
+
+      final savedOverrides = prefs.getString(_customerStatusOverridePrefsKey);
+      if (savedOverrides != null && savedOverrides.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(savedOverrides);
+          if (decoded is Map) {
+            final mapped = decoded.map((k, v) => MapEntry(k.toString(), (v ?? '').toString()));
+            mapped.removeWhere((k, v) => v.trim().isEmpty);
+            _customerStatusOverrides
+              ..clear()
+              ..addAll(mapped);
+          }
+        } catch (_) {}
+      }
+       
       colorStock = _createDefaultColorStock();
       homeColorStock = _createDefaultColorStock();
 
@@ -246,6 +267,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     await prefs.setString('home_color_stock_v1', jsonEncode(homeColorStock));
     await prefs.setString('orders_v1', jsonEncode(orders));
     await prefs.setString('customers_v1', jsonEncode(customers));
+    await prefs.setString(_customerStatusOverridePrefsKey, jsonEncode(_customerStatusOverrides));
   }
 
   void _pushUndo(String label) {
@@ -275,6 +297,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       count15Text: count15Controller.text,
       count16Text: count16Controller.text,
       count17Text: count17Controller.text,
+      customerStatusOverrides: Map<String, String>.from(_customerStatusOverrides),
     );
 
     _undoStack.add(snapshot);
@@ -322,11 +345,82 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       count15Controller.text = s.count15Text;
       count16Controller.text = s.count16Text;
       count17Controller.text = s.count17Text;
+
+      _customerStatusOverrides
+        ..clear()
+        ..addAll(s.customerStatusOverrides);
     });
 
     await _saveData();
     await _saveUndoStack();
     return true;
+  }
+
+  Future<bool> _undoToIndex(int index) async {
+    if (index < 0 || index >= _undoStack.length) return false;
+
+    final s = _undoStack.removeAt(index);
+    if (index < _undoStack.length) {
+      _undoStack.removeRange(index, _undoStack.length);
+    }
+
+    setState(() {
+      price15ProMax = s.price15ProMax;
+      price16ProMax = s.price16ProMax;
+      price17ProMax = s.price17ProMax;
+
+      stock15 = s.stock15;
+      stock16 = s.stock16;
+      stock17 = s.stock17;
+
+      homeStock15 = s.homeStock15;
+      homeStock16 = s.homeStock16;
+      homeStock17 = s.homeStock17;
+
+      colorStock = _cloneColorStock(s.colorStock);
+      homeColorStock = _cloneColorStock(s.homeColorStock);
+
+      orders
+        ..clear()
+        ..addAll(s.orders.map((e) => Map<String, String>.from(e)));
+      customers
+        ..clear()
+        ..addAll(s.customers.map((e) => Map<String, String>.from(e)));
+      inventoryLog = List<String>.from(s.inventoryLog);
+
+      netProfit = s.netProfit;
+      myShare = s.myShare;
+      partnerShare = s.partnerShare;
+      myAccountBalance = s.myAccountBalance;
+
+      collectionController.text = s.collectionText;
+      expensesController.text = s.expensesText;
+      count15Controller.text = s.count15Text;
+      count16Controller.text = s.count16Text;
+      count17Controller.text = s.count17Text;
+
+      _customerStatusOverrides
+        ..clear()
+        ..addAll(s.customerStatusOverrides);
+    });
+
+    await _saveData();
+    await _saveUndoStack();
+    return true;
+  }
+
+  String _formatUndoIso(String iso) {
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      final y = dt.year.toString().padLeft(4, '0');
+      final m = dt.month.toString().padLeft(2, '0');
+      final d = dt.day.toString().padLeft(2, '0');
+      final hh = dt.hour.toString().padLeft(2, '0');
+      final mm = dt.minute.toString().padLeft(2, '0');
+      return '$y/$m/$d $hh:$mm';
+    } catch (_) {
+      return iso;
+    }
   }
 
   Future<void> _saveUndoStack() async {
@@ -342,6 +436,33 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     s = s.replaceAll(RegExp(r'\s+'), ' ');
     s = s.replaceAll('أ', 'ا').replaceAll('إ', 'ا').replaceAll('آ', 'ا').replaceAll('ة', 'ه').replaceAll('ى', 'ي');
     return s;
+  }
+
+  String _normalizeColorNameAny(String colorRaw) {
+    final c = _normalizeArabicName(colorRaw);
+    if (c.isEmpty) return '';
+    if (c.contains('سلفر') || c.contains('سيلفر') || c.contains('فضي') || c.contains('فضه') || c.contains('ابيض') || c.contains('أبيض') || c.contains('silver') || c.contains('white')) return 'سلفر';
+    if (c.contains('اسود') || c.contains('أسود') || c.contains('بلاك') || c.contains('black')) return 'اسود';
+    if (c.contains('ازرق') || c.contains('أزرق') || c.contains('blue')) return 'ازرق';
+    if (c.contains('دهبي') || c.contains('ذهبي') || c.contains('جولد') || c.contains('gold')) return 'دهبي';
+    if (c.contains('برتقالي') || c.contains('اورنج') || c.contains('اورانج') || c.contains('أورنج') || c.contains('orange')) return 'برتقالي';
+    if (c.contains('كحلي') || c.contains('كحلى') || c.contains('navy')) return 'كحلي';
+    if (c.contains('تيتانيوم') || c.contains('طبيعي') || c.contains('ناتشورال') || c.contains('natural')) return 'تيتانيوم';
+    return colorRaw.trim();
+  }
+
+  String _normalizeColorForModel(String modelKey, String colorRaw) {
+    final normalized = _normalizeColorNameAny(colorRaw).trim();
+    if (normalized.isEmpty) return '';
+
+    final allowed = _stockModels[modelKey] ?? const <String>[];
+    if (allowed.contains(normalized)) return normalized;
+
+    // Smart mapping: treat "ازرق" and "كحلي" as the same family depending on model.
+    if (normalized == 'ازرق' && allowed.contains('كحلي')) return 'كحلي';
+    if (normalized == 'كحلي' && allowed.contains('ازرق')) return 'ازرق';
+
+    return normalized;
   }
 
   String _toWesternDigits(String value) {
@@ -435,7 +556,70 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     return false;
   }
 
-  List<Map<String, String>> _customersSnapshot() => customers.map((e) => Map<String, String>.from(e)).toList();
+  List<Map<String, String>> _customersSnapshot() {
+    _rebuildCustomersFromOrders();
+    return customers.map((e) => Map<String, String>.from(e)).toList();
+  }
+
+  ({String code, String label}) _derivedOrderStatus(Map<String, String> order, DateTime now) {
+    final raw = _normalizeArabicName(order['status'] ?? '');
+
+    DateTime? createdAt;
+    try {
+      final iso = (order['created_at'] ?? '').trim();
+      if (iso.isNotEmpty) createdAt = DateTime.parse(iso).toLocal();
+    } catch (_) {}
+
+    if (raw.contains('delivered') || raw.contains('تم التسليم') || raw.contains('تسليم')) {
+      return (code: 'delivered', label: 'تم التسليم');
+    }
+    if (raw.contains('returned') || raw.contains('مرتجع') || raw.contains('رجع')) {
+      return (code: 'returned', label: 'مرتجع');
+    }
+    if (raw.contains('canceled') || raw.contains('ملغي') || raw.contains('الغاء')) {
+      return (code: 'canceled', label: 'ملغي');
+    }
+    if (raw.contains('review') || raw.contains('راجع')) {
+      return (code: 'review', label: 'راجع');
+    }
+
+    // shipped / unknown => infer by age
+    if (createdAt != null) {
+      final days = now.difference(createdAt).inDays;
+      if (days >= _reviewAfterDays) return (code: 'review', label: 'راجع');
+    }
+    return (code: 'in_transit', label: 'جاري التوصيل');
+  }
+
+  ({String code, String label}) _statusFromCode(String code) {
+    switch (code) {
+      case 'delivered':
+        return (code: 'delivered', label: 'تم التسليم');
+      case 'review':
+        return (code: 'review', label: 'راجع');
+      case 'returned':
+        return (code: 'returned', label: 'مرتجع');
+      case 'canceled':
+        return (code: 'canceled', label: 'ملغي');
+      case 'in_transit':
+      default:
+        return (code: 'in_transit', label: 'جاري التوصيل');
+    }
+  }
+
+  Future<void> _setCustomerStatusOverride(String customerKey, String? statusCode) async {
+    _pushUndo("تعديل حالة عميل");
+    setState(() {
+      final next = (statusCode ?? '').trim();
+      if (next.isEmpty) {
+        _customerStatusOverrides.remove(customerKey);
+      } else {
+        _customerStatusOverrides[customerKey] = next;
+      }
+      _rebuildCustomersFromOrders();
+    });
+    await _saveData();
+  }
 
   Future<int> _normalizeOrderPhonesAndRebuildCustomers() async {
     _pushUndo("تنظيف أرقام العملاء");
@@ -612,6 +796,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           editCustomer: _editCustomerDialogAndApply,
           deleteCustomer: _deleteCustomerWithConfirm,
           deleteSelectedCustomers: _deleteSelectedCustomersByKeys,
+          setCustomerStatusOverride: _setCustomerStatusOverride,
         ),
       ),
     );
@@ -628,8 +813,11 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   void _rebuildCustomersFromOrders() {
     final Map<String, Map<String, String>> grouped = {};
     final Map<String, Set<String>> phonesByKey = {};
+    final Map<String, List<Map<String, String>>> ordersByKey = {};
+    final now = DateTime.now();
     for (final order in orders) {
       final key = _customerKeyForOrder(order);
+      ordersByKey.putIfAbsent(key, () => <Map<String, String>>[]).add(order);
       final existing = grouped[key];
       final phones = _orderPhones(order);
       phonesByKey.putIfAbsent(key, () => <String>{}).addAll(phones);
@@ -656,6 +844,60 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           existing['address'] = order['address'] ?? '';
         }
       }
+    }
+
+    for (final e in grouped.entries) {
+      final key = e.key;
+      final c = e.value;
+      final list = ordersByKey[key] ?? const <Map<String, String>>[];
+      if (list.isEmpty) continue;
+
+      Map<String, String> last = list.first;
+      DateTime lastAt = DateTime.fromMillisecondsSinceEpoch(0);
+      for (final o in list) {
+        try {
+          final iso = (o['created_at'] ?? '').trim();
+          if (iso.isEmpty) continue;
+          final dt = DateTime.parse(iso).toLocal();
+          if (dt.isAfter(lastAt)) {
+            lastAt = dt;
+            last = o;
+          }
+        } catch (_) {}
+      }
+
+      final override = (_customerStatusOverrides[key] ?? '').trim();
+      if (override.isNotEmpty) {
+        final s = _statusFromCode(override);
+        c['status_last'] = s.code;
+        c['status_label'] = s.label;
+        c['status_manual'] = 'true';
+      } else {
+        final lastStatus = _derivedOrderStatus(last, now);
+        c['status_last'] = lastStatus.code;
+        c['status_label'] = lastStatus.label;
+        c['status_manual'] = 'false';
+      }
+
+      final counts = <String, int>{};
+      for (final o in list) {
+        final s = _derivedOrderStatus(o, now);
+        counts[s.code] = (counts[s.code] ?? 0) + 1;
+      }
+
+      final parts = <String>[];
+      void addPart(String code, String label) {
+        final n = counts[code] ?? 0;
+        if (n > 0) parts.add('$label: $n');
+      }
+
+      addPart('in_transit', 'جاري');
+      addPart('review', 'راجع');
+      addPart('delivered', 'تم');
+      addPart('returned', 'مرتجع');
+      addPart('canceled', 'ملغي');
+
+      c['status_summary'] = parts.join('، ');
     }
 
     customers
@@ -753,6 +995,69 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     }
   }
 
+  Future<({int orderIndex, double confidence})?> _resolveDeliveryMatchWithAi({
+    required String sheetName,
+    required String sheetGov,
+    required double amount,
+    required double fee,
+    required double shipping,
+    required List<int> candidateIndices,
+  }) async {
+    if (candidateIndices.isEmpty) return null;
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/ai/match_delivery');
+
+    try {
+      final candidates = candidateIndices.map((oi) {
+        final order = orders[oi];
+        final phones = _orderPhones(order);
+        return <String, dynamic>{
+          'candidate_id': oi,
+          'name': order['name'] ?? '',
+          'governorate': order['governorate'] ?? '',
+          'phone': order['phone'] ?? '',
+          'phones': phones,
+          'address': order['address'] ?? '',
+          'cod_total': order['cod_total'] ?? '',
+          'price': order['price'] ?? '',
+          'shipping': order['shipping'] ?? '',
+          'discount': order['discount'] ?? '',
+          'count': order['count'] ?? '1',
+          'created_at': order['created_at'] ?? '',
+          'status': order['status'] ?? '',
+        };
+      }).toList();
+
+      final body = <String, dynamic>{
+        'row': {
+          'receiver_name': sheetName,
+          'destination': sheetGov,
+          'cod_amount': amount,
+          'cod_service_fee': fee,
+          'shipping_fee': shipping,
+        },
+        'candidates': candidates,
+      };
+
+      final response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return null;
+      final idx = int.tryParse((decoded['match_candidate_id'] ?? '').toString()) ?? -1;
+      final confidence = double.tryParse((decoded['confidence'] ?? '').toString()) ?? 0.0;
+      if (idx < 0 || !candidateIndices.contains(idx)) return null;
+      return (orderIndex: idx, confidence: confidence);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Map<String, String> _dynamicOrderToStringMap(Map<String, dynamic> e) {
     String s(dynamic v) => (v ?? '').toString().trim();
 
@@ -798,25 +1103,12 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     if (incoming.isEmpty) return 'لم يتم العثور على أوردرات في النص.';
     _pushUndo(logSource);
 
-    String normalizeColor(String colorRaw) {
-      final c = _normalizeArabicName(colorRaw);
-      if (c.isEmpty) return '';
-      if (c.contains('سلفر') || c.contains('فضي') || c.contains('ابيض') || c.contains('أبيض') || c.contains('silver') || c.contains('white')) return 'سلفر';
-      if (c.contains('اسود') || c.contains('أسود') || c.contains('بلاك') || c.contains('black')) return 'اسود';
-      if (c.contains('ازرق') || c.contains('أزرق') || c.contains('blue')) return 'ازرق';
-      if (c.contains('دهبي') || c.contains('ذهبي') || c.contains('جولد') || c.contains('gold')) return 'دهبي';
-      if (c.contains('برتقالي') || c.contains('اورنج') || c.contains('اورانج') || c.contains('أورنج') || c.contains('orange')) return 'برتقالي';
-      if (c.contains('كحلي') || c.contains('navy')) return 'كحلي';
-      if (c.contains('تيتانيوم') || c.contains('طبيعي') || c.contains('ناتشورال') || c.contains('natural')) return 'تيتانيوم';
-      return colorRaw.trim();
-    }
-
     List<Map<String, String>> orderDevices(Map<String, String> o) {
       final count = _parseIntSafe(o['count'] ?? '1');
       final safeCount = count <= 0 ? 1 : count;
 
       final baseModel = _normalizeModelFromAi((o['model'] ?? '').trim());
-      final baseColor = normalizeColor((o['color'] ?? '').trim());
+      final baseColor = baseModel.isEmpty ? _normalizeColorNameAny((o['color'] ?? '').trim()) : _normalizeColorForModel(baseModel, (o['color'] ?? '').trim());
 
       final modelsRaw = (o['models'] ?? '').trim();
       final models = modelsRaw
@@ -828,14 +1120,15 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       final colorsRaw = (o['colors'] ?? '').trim();
       final colors = colorsRaw
           .split('|')
-          .map((x) => normalizeColor(x))
+          .map((x) => _normalizeColorNameAny(x))
           .where((x) => x.isNotEmpty)
           .toList();
 
       final devices = <Map<String, String>>[];
       for (int i = 0; i < safeCount; i++) {
         final m = (i < models.length && models[i].isNotEmpty) ? models[i] : baseModel;
-        final c = (i < colors.length && colors[i].isNotEmpty) ? colors[i] : baseColor;
+        final rawColor = (i < colors.length && colors[i].isNotEmpty) ? colors[i] : baseColor;
+        final c = m.isEmpty ? rawColor : _normalizeColorForModel(m, rawColor);
         devices.add({'model': m, 'color': c});
       }
       return devices;
@@ -1190,14 +1483,38 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     return '';
   }
 
+  String _normalizePersonNameForMatch(String s) {
+    final n = _normalizeArabicName(s)
+        .replaceAll(RegExp(r'[^a-z0-9\u0600-\u06FF\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    const stop = <String>{
+      'اسم',
+      'الاسم',
+      'عميل',
+      'العميل',
+      'مستلم',
+      'المستلم',
+      'الانسه',
+      'السيد',
+      'السيده',
+    };
+    final tokens = n
+        .split(' ')
+        .where((e) => e.trim().isNotEmpty)
+        .where((e) => !stop.contains(e.trim()))
+        .toList();
+    return tokens.join(' ');
+  }
+
   double _nameMatchScore(String a, String b) {
-    final n1 = _normalizeArabicName(a);
-    final n2 = _normalizeArabicName(b);
+    final n1 = _normalizePersonNameForMatch(a);
+    final n2 = _normalizePersonNameForMatch(b);
     if (n1.isEmpty || n2.isEmpty) return 0;
     if (n1 == n2) return 1;
     if (n1.contains(n2) || n2.contains(n1)) return 0.85;
-    final t1 = n1.split(' ').where((e) => e.isNotEmpty).toSet();
-    final t2 = n2.split(' ').where((e) => e.isNotEmpty).toSet();
+    final t1 = n1.split(' ').where((e) => e.isNotEmpty && e.length > 1).toSet();
+    final t2 = n2.split(' ').where((e) => e.isNotEmpty && e.length > 1).toSet();
     if (t1.isEmpty || t2.isEmpty) return 0;
     final inter = t1.intersection(t2).length;
     final union = t1.union(t2).length;
@@ -1453,6 +1770,22 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         return -1;
       }
 
+      int findHeaderExactPriority(List<String> exactOrPreferred, List<String> fallbackContains) {
+        for (final key in exactOrPreferred) {
+          for (int i = 0; i < headers.length; i++) {
+            final h = headers[i];
+            if (h.trim() == key || h.contains(key)) return i;
+          }
+        }
+        for (int i = 0; i < headers.length; i++) {
+          final h = headers[i];
+          for (final key in fallbackContains) {
+            if (h.contains(key)) return i;
+          }
+        }
+        return -1;
+      }
+
       int amountIndex = findHeaderIndex(['cod amount', 'amount cod', 'cod amt', 'تحصيل']);
       if (amountIndex == -1) amountIndex = findHeaderByAll(['cod', 'amount']);
 
@@ -1460,8 +1793,18 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       if (feeIndex == -1) feeIndex = findHeaderByAll(['cod', 'fee']);
 
       int shippingIndex = findHeaderIndex(['total freight', 'shipping cost', 'shipping fee', 'shipping', 'freight', 'شحن']);
-      int receiverNameIndex = findHeaderIndex(['receiver name', 'receiver', 'consignee', 'name', 'اسم']);
-      int destinationIndex = findHeaderIndex(['destination', 'city', 'gov', 'governorate', 'address', 'محافظة', 'المحافظه']);
+      int receiverNameIndex = findHeaderExactPriority(
+        ['receiver name', 'consignee name', 'receiver', 'consignee', 'اسم المستلم'],
+        ['receiver', 'consignee', 'اسم المستلم', 'receiver name'],
+      );
+      int destinationIndex = findHeaderExactPriority(
+        ['destination', 'governorate', 'city', 'المحافظة', 'المحافظه'],
+        ['destination', 'governorate', 'city', 'محافظة', 'المحافظه'],
+      );
+      final int signingStatusIndex = findHeaderExactPriority(
+        ['signing status', 'sign status', 'delivery status', 'حالة التسليم'],
+        ['sign', 'status', 'delivery'],
+      );
 
       if (amountIndex == -1 || feeIndex == -1) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("مش لاقي أعمدة COD Amount / COD Service Fee")));
@@ -1483,6 +1826,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       final usedOrderIndices = <int>{};
       int matchedDelivered = 0;
       int unmatchedDelivered = 0;
+      final matchedRows = <Map<String, String>>[];
+      final unmatchedRows = <Map<String, String>>[];
 
       for (int i = 1; i < rows.length; i++) {
         var row = rows[i];
@@ -1492,11 +1837,19 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           double amount = _toDoubleSafe(cellAt(amountIndex));
           double fee = _toDoubleSafe(cellAt(feeIndex));
           double shipping = shippingIndex != -1 ? _toDoubleSafe(cellAt(shippingIndex)) : 0.0;
+          final signingStatus = signingStatusIndex != -1 ? _normalizeArabicName((cellAt(signingStatusIndex)?.toString() ?? '').trim()) : '';
 
           if (shipping > 0) totalShipping += shipping;
 
           final isExternalTransfer = amount > 0 && amount <= manualTransferCodMax;
-          final isDelivered = fee > 0;
+          final deliveredByStatus = signingStatus.contains('success sign') ||
+              signingStatus.contains('signed') ||
+              signingStatus.contains('delivered') ||
+              signingStatus.contains('تم التسليم');
+          final returnedByStatus = signingStatus.contains('return') ||
+              signingStatus.contains('returned') ||
+              signingStatus.contains('مرتجع');
+          final isDelivered = returnedByStatus ? false : (deliveredByStatus || fee > 0);
 
           if (isDelivered && isExternalTransfer) cashDeliveredCount++;
 
@@ -1510,6 +1863,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
             var bestIndex = -1;
             var bestScore = 0.0;
+            final candidateScores = <({int idx, double score})>[];
+            final allScores = <({int idx, double score})>[];
+            final candidateGovMismatch = <int, bool>{};
+            final candidateNameScore = <int, double>{};
             for (var oi = 0; oi < orders.length; oi++) {
               if (usedOrderIndices.contains(oi)) continue;
               final order = orders[oi];
@@ -1517,34 +1874,123 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
 
               final nameScore = _nameMatchScore(sheetName, order['name'] ?? '');
-              final govScore = _normalizeArabicName(sheetGov).isNotEmpty && _normalizeArabicName(order['governorate'] ?? '').isNotEmpty && 
-                              (_normalizeArabicName(sheetGov).contains(_normalizeArabicName(order['governorate'] ?? '')) || 
-                               _normalizeArabicName(order['governorate'] ?? '').contains(_normalizeArabicName(sheetGov))) ? 1.0 : 0.0;
+              final sheetGovNorm = _normalizeArabicName(sheetGov);
+              final orderGovNorm = _normalizeArabicName(order['governorate'] ?? '');
+              final govScore = sheetGovNorm.isNotEmpty &&
+                      orderGovNorm.isNotEmpty &&
+                      (sheetGovNorm.contains(orderGovNorm) || orderGovNorm.contains(sheetGovNorm))
+                  ? 1.0
+                  : 0.0;
+              final govMismatch = sheetGovNorm.isNotEmpty && orderGovNorm.isNotEmpty && govScore == 0.0;
+              candidateGovMismatch[oi] = govMismatch;
+              candidateNameScore[oi] = nameScore;
               final codTotal = _parseIntSafe(order['cod_total'] ?? '');
               final basePrice = _parseIntSafe(order['price'] ?? '');
               final shippingFee = _parseIntSafe(order['shipping'] ?? '');
               final discount = _parseIntSafe(order['discount'] ?? '');
-              final expectedAmount = codTotal > 0 ? codTotal : (basePrice > 0 ? (basePrice - discount + shippingFee) : 0);
-              final amountScore = expectedAmount > 0 ? ((amount - expectedAmount).abs() <= 150 ? 1.0 : ((amount - expectedAmount).abs() <= 400 ? 0.6 : 0.0)) : 0.0;
-              final score = (nameScore * 0.6) + (govScore * 0.25) + (amountScore * 0.15);
-              
+              final count = _parseIntSafe(order['count'] ?? '1');
+              final safeCount = count <= 0 ? 1 : count;
+              final expectedAmountSingle = codTotal > 0 ? codTotal : (basePrice > 0 ? (basePrice - discount + shippingFee) : 0);
+              final expectedAmountMulti = basePrice > 0 ? ((basePrice * safeCount) - discount + shippingFee) : 0;
+              var expectedAmount = expectedAmountSingle;
+              if (expectedAmountSingle > 0 && expectedAmountMulti > 0) {
+                final d1 = (amount - expectedAmountSingle).abs();
+                final d2 = (amount - expectedAmountMulti).abs();
+                expectedAmount = d2 < d1 ? expectedAmountMulti : expectedAmountSingle;
+              } else if (expectedAmountSingle <= 0 && expectedAmountMulti > 0) {
+                expectedAmount = expectedAmountMulti;
+              }
+
+              double amountScore = 0.0;
+              if (expectedAmount > 0) {
+                final diff = (amount - expectedAmount).abs();
+                final ratio = diff / expectedAmount;
+                if (diff <= 200) {
+                  amountScore = 1.0;
+                } else if (diff <= 800 || ratio <= 0.15) {
+                  amountScore = 0.75;
+                } else if (diff <= 1500 || ratio <= 0.30) {
+                  amountScore = 0.45;
+                }
+              }
+
+              // Prevent false positives: if governorate conflicts, require near-exact name.
+              if (govMismatch && nameScore < 0.9) {
+                continue;
+              }
+
+              var score = (nameScore * 0.5) + (govScore * 0.25) + (amountScore * 0.25);
+              if (govMismatch) {
+                score *= 0.8;
+              }
+              allScores.add((idx: oi, score: score));
+              if (score >= 0.35) {
+                candidateScores.add((idx: oi, score: score));
+              }
+               
               if (score > bestScore) {
                 bestScore = score;
                 bestIndex = oi;
               }
             }
 
-            if (bestIndex != -1 && bestScore >= 0.62) {
-              usedOrderIndices.add(bestIndex);
-              orders[bestIndex]['status'] = 'delivered';
-              orders[bestIndex]['delivered_at'] = DateTime.now().toIso8601String();
+            candidateScores.sort((a, b) => b.score.compareTo(a.score));
+            allScores.sort((a, b) => b.score.compareTo(a.score));
+            int? resolvedIndex;
+            var resolvedScore = bestScore;
+            final topCandidates = allScores.where((x) => x.score >= 0.15).take(6).map((x) => x.idx).toList();
+            if (topCandidates.isNotEmpty) {
+              final aiPick = await _resolveDeliveryMatchWithAi(
+                sheetName: sheetName,
+                sheetGov: sheetGov,
+                amount: amount,
+                fee: fee,
+                shipping: shipping,
+                candidateIndices: topCandidates,
+              );
+              if (aiPick != null && aiPick.confidence >= 0.60) {
+                final aiMismatch = candidateGovMismatch[aiPick.orderIndex] ?? false;
+                final aiNameScore = candidateNameScore[aiPick.orderIndex] ?? 0.0;
+                if (!aiMismatch || aiNameScore >= 0.92) {
+                  resolvedIndex = aiPick.orderIndex;
+                  resolvedScore = aiPick.confidence;
+                }
+              }
+            }
+
+            if (resolvedIndex == null && bestIndex != -1 && bestScore >= 0.68) {
+              resolvedIndex = bestIndex;
+              resolvedScore = bestScore;
+            }
+
+            if (resolvedIndex != null && resolvedScore >= 0.62) {
+              final bestMatchedIndex = resolvedIndex;
+              usedOrderIndices.add(bestMatchedIndex);
+              orders[bestMatchedIndex]['status'] = 'delivered';
+              orders[bestMatchedIndex]['delivered_at'] = DateTime.now().toIso8601String();
               matchedDelivered++;
-              final modelDigit = _orderModelDigit(orders[bestIndex]);
+              matchedRows.add({
+                'sheet_name': sheetName,
+                'sheet_governorate': sheetGov,
+                'sheet_amount': amount.toStringAsFixed(0),
+                'order_name': orders[bestMatchedIndex]['name'] ?? '',
+                'order_governorate': orders[bestMatchedIndex]['governorate'] ?? '',
+                'order_model': orders[bestMatchedIndex]['model'] ?? '',
+                'order_color': orders[bestMatchedIndex]['color'] ?? '',
+                'score': resolvedScore.toStringAsFixed(2),
+              });
+              final modelDigit = _orderModelDigit(orders[bestMatchedIndex]);
               if (modelDigit == '15') auto15++;
               if (modelDigit == '16') auto16++;
               if (modelDigit == '17') auto17++;
             } else {
               unmatchedDelivered++;
+              unmatchedRows.add({
+                'sheet_name': sheetName,
+                'sheet_governorate': sheetGov,
+                'sheet_amount': amount.toStringAsFixed(0),
+                'reason': 'no_confident_match',
+              });
               if (amount >= 5000 && amount <= 5500) {
                 auto15++;
               } else if (amount >= 5600 && amount <= 6000) {
@@ -1579,6 +2025,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         count15Controller.text = (auto15 + cash15).toString();
         count16Controller.text = (auto16 + cash16).toString();
         count17Controller.text = (auto17 + cash17).toString();
+        _rebuildCustomersFromOrders();
+        _lastSheetMatchedRows = matchedRows;
+        _lastSheetUnmatchedRows = unmatchedRows;
+        _lastSheetAnalysisAt = DateTime.now().toIso8601String();
       });
       await _saveData();
       await _addLogEntry("مطابقة تسليم الشيت", "مطابقات مؤكدة: $matchedDelivered\nحالات غير مؤكدة: $unmatchedDelivered");
@@ -1645,16 +2095,146 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           ),
         ),
         actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 44), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              child: const Text("إغلاق"),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _showLastSheetAnalysisDetails,
+                  icon: const Icon(Icons.list_alt_rounded, size: 18),
+                  label: const Text("تفاصيل التحليل"),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(0, 44), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  child: const Text("إغلاق"),
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  void _showLastSheetAnalysisDetails() {
+    final matched = _lastSheetMatchedRows;
+    final unmatched = _lastSheetUnmatchedRows;
+    if (matched.isEmpty && unmatched.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("لا توجد تفاصيل تحليل حالياً")));
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return DefaultTabController(
+          length: 2,
+          child: AlertDialog(
+            backgroundColor: _dialogBg(context),
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
+            titlePadding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+            contentPadding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text("تفاصيل تحليل الشيت", textAlign: TextAlign.right),
+                if (_lastSheetAnalysisAt.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _lastSheetAnalysisAt,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black54, fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                TabBar(
+                  tabs: [
+                    Tab(text: 'اتطابق (${matched.length})'),
+                    Tab(text: 'ما اتطابقش (${unmatched.length})'),
+                  ],
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 420,
+              child: TabBarView(
+                children: [
+                  _buildSheetAnalysisList(
+                    rows: matched,
+                    emptyText: "لا توجد شحنات متطابقة",
+                    matchedMode: true,
+                  ),
+                  _buildSheetAnalysisList(
+                    rows: unmatched,
+                    emptyText: "لا توجد شحنات غير متطابقة",
+                    matchedMode: false,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(0, 42), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  child: const Text("إغلاق"),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSheetAnalysisList({
+    required List<Map<String, String>> rows,
+    required String emptyText,
+    required bool matchedMode,
+  }) {
+    if (rows.isEmpty) {
+      return Center(child: Text(emptyText, textAlign: TextAlign.center));
+    }
+
+    return ListView.separated(
+      itemCount: rows.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (_, i) {
+        final r = rows[i];
+        return Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A1A1A) : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.white12 : Colors.black12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text("الاسم (الشيت): ${r['sheet_name'] ?? '-'}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text("المحافظة (الشيت): ${r['sheet_governorate'] ?? '-'}", textAlign: TextAlign.right),
+              Text("المبلغ: ${r['sheet_amount'] ?? '-'}", textAlign: TextAlign.right),
+              if (matchedMode) ...[
+                const SizedBox(height: 4),
+                Text("تمت مطابقته مع: ${r['order_name'] ?? '-'}", textAlign: TextAlign.right),
+                Text("محافظة الأوردر: ${r['order_governorate'] ?? '-'}", textAlign: TextAlign.right),
+                Text("الموديل/اللون: ${(r['order_model'] ?? '-')} / ${(r['order_color'] ?? '-')}", textAlign: TextAlign.right),
+                Text("درجة التطابق: ${r['score'] ?? '-'}", textAlign: TextAlign.right),
+              ] else ...[
+                const SizedBox(height: 4),
+                Text("السبب: ${r['reason'] ?? 'غير محدد'}", textAlign: TextAlign.right),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1824,11 +2404,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           final cNorm = (di < parts.length && parts[di].isNotEmpty) ? parts[di] : baseColor;
           if (cNorm.isEmpty) continue;
 
-          final known = _stockModels[m]!.firstWhere(
-            (k) => _normalizeArabicName(k) == cNorm,
-            orElse: () => '',
-          );
-          if (known.isEmpty) continue;
+          final known = _normalizeColorForModel(m, cNorm);
+          if (known.isEmpty || !_stockModels[m]!.contains(known)) continue;
           exactToDeduct[m]![known] = (exactToDeduct[m]![known] ?? 0) + 1;
           any = true;
         }
@@ -2226,11 +2803,112 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                   onPressed: _undoStack.isEmpty
                       ? null
                       : () async {
-                          final ok = await _undoLast();
+                          final selectedIndex = await showModalBottomSheet<int>(
+                            context: context,
+                            showDragHandle: true,
+                            backgroundColor: _dialogBg(context),
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+                            ),
+                            builder: (sheetCtx) {
+                              final items = _undoStack.reversed.toList();
+                              return Directionality(
+                                textDirection: TextDirection.rtl,
+                                child: SafeArea(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.undo_rounded, size: 18),
+                                            const SizedBox(width: 8),
+                                            const Expanded(
+                                              child: Text(
+                                                "اختر العملية التي تريد التراجع عنها",
+                                                style: TextStyle(fontWeight: FontWeight.w800),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const Divider(height: 1),
+                                      Flexible(
+                                        child: ListView.separated(
+                                          shrinkWrap: true,
+                                          itemCount: items.length,
+                                          separatorBuilder: (_, __) => const Divider(height: 1),
+                                          itemBuilder: (_, i) {
+                                            final s = items[i];
+                                            final realIndex = _undoStack.length - 1 - i;
+                                            return ListTile(
+                                              title: Text(s.label, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                              subtitle: Text(_formatUndoIso(s.at), textAlign: TextAlign.right),
+                                              trailing: const Icon(Icons.undo_rounded),
+                                              onTap: () => Navigator.pop(sheetCtx, realIndex),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: OutlinedButton.icon(
+                                                onPressed: () => Navigator.pop(sheetCtx),
+                                                icon: const Icon(Icons.close_rounded, size: 18),
+                                                label: const Text("إلغاء"),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: ElevatedButton.icon(
+                                                onPressed: () => Navigator.pop(sheetCtx, _undoStack.length - 1),
+                                                icon: const Icon(Icons.undo_rounded, size: 18),
+                                                label: const Text("آخر عملية"),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+
+                          if (!mounted) return;
+                          if (selectedIndex == null) return;
+
+                          final picked = _undoStack[selectedIndex];
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (c2) => AlertDialog(
+                              backgroundColor: _dialogBg(context),
+                              surfaceTintColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
+                              title: const Text("تأكيد التراجع", textAlign: TextAlign.right),
+                              content: Text(
+                                "سيتم الرجوع للحالة قبل العملية:\n${picked.label}\n${_formatUndoIso(picked.at)}\n\nملاحظة: أي عمليات تمت بعدها سيتم إلغاؤها.",
+                                textAlign: TextAlign.right,
+                              ),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(c2, false), child: const Text("إلغاء")),
+                                ElevatedButton(onPressed: () => Navigator.pop(c2, true), child: const Text("تراجع")),
+                              ],
+                            ),
+                          );
+                          if (!mounted) return;
+                          if (confirm != true) return;
+
+                          final ok = await _undoToIndex(selectedIndex);
                           if (!mounted) return;
                           if (ctx.mounted) Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(ok ? "تم التراجع عن آخر عملية" : "لا يوجد ما يمكن التراجع عنه")),
+                            SnackBar(content: Text(ok ? "تم التراجع بنجاح" : "لا يوجد ما يمكن التراجع عنه")),
                           );
                         },
                   icon: const Icon(Icons.undo_rounded, size: 18),
@@ -3227,6 +3905,7 @@ class _UndoSnapshot {
     required this.count15Text,
     required this.count16Text,
     required this.count17Text,
+    required this.customerStatusOverrides,
   });
 
   final String label;
@@ -3261,6 +3940,8 @@ class _UndoSnapshot {
   final String count15Text;
   final String count16Text;
   final String count17Text;
+
+  final Map<String, String> customerStatusOverrides;
 
   static _UndoSnapshot? fromEncoded(String encoded) {
     try {
@@ -3308,6 +3989,7 @@ class _UndoSnapshot {
         'count15Text': count15Text,
         'count16Text': count16Text,
         'count17Text': count17Text,
+        'customerStatusOverrides': customerStatusOverrides,
       };
 
   static _UndoSnapshot fromJson(Map<String, dynamic> j) {
@@ -3336,6 +4018,7 @@ class _UndoSnapshot {
     }
 
     List<String> readListString(dynamic v) => (v is List) ? v.map((e) => (e ?? '').toString()).toList() : <String>[];
+    Map<String, String> readMapString(dynamic v) => (v is Map) ? v.map((k, val) => MapEntry(k.toString(), (val ?? '').toString())) : <String, String>{};
 
     double d(dynamic v) => (v is num) ? v.toDouble() : double.tryParse(v.toString()) ?? 0.0;
     int i(dynamic v) => (v is num) ? v.toInt() : int.tryParse(v.toString()) ?? 0;
@@ -3367,6 +4050,7 @@ class _UndoSnapshot {
       count15Text: s(j['count15Text']),
       count16Text: s(j['count16Text']),
       count17Text: s(j['count17Text']),
+      customerStatusOverrides: readMapString(j['customerStatusOverrides']),
     );
   }
 }
