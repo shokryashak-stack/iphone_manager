@@ -169,11 +169,22 @@ class _CustomersPageState extends State<CustomersPage> {
         final name = _normArabic(c['name'] ?? '');
         final gov = _normArabic(c['governorate'] ?? '');
         final address = _normArabic(c['address'] ?? '');
+        final model = _normArabic(c['last_model'] ?? '');
+        final color = _normArabic(c['last_color'] ?? '');
+        final modelsSummary = _normArabic(c['models_summary'] ?? '');
+        final colorsSummary = _normArabic(c['colors_summary'] ?? '');
         final phone = _onlyDigits(c['phone'] ?? '');
         final phones = _onlyDigits(c['phones'] ?? '');
 
         final phoneMatch = qDigits.isNotEmpty && (phone.contains(qDigits) || phones.contains(qDigits));
-        final textMatch = qName.isNotEmpty && (name.contains(qName) || gov.contains(qName) || address.contains(qName));
+        final textMatch = qName.isNotEmpty &&
+            (name.contains(qName) ||
+                gov.contains(qName) ||
+                address.contains(qName) ||
+                model.contains(qName) ||
+                color.contains(qName) ||
+                modelsSummary.contains(qName) ||
+                colorsSummary.contains(qName));
         return phoneMatch || textMatch;
       }).toList();
     });
@@ -303,6 +314,10 @@ class _CustomersPageState extends State<CustomersPage> {
                       final cnt = c['orders_count'] ?? '0';
                       final lastAt = c['last_order_at'] ?? '';
                       final extraPhones = (c['phones'] ?? '').trim();
+                      final lastModel = (c['last_model'] ?? '').trim();
+                      final lastColor = (c['last_color'] ?? '').trim();
+                      final modelsSummary = (c['models_summary'] ?? '').trim();
+                      final colorsSummary = (c['colors_summary'] ?? '').trim();
                       final statusLabel = (c['status_label'] ?? '').trim();
                       final statusSummary = (c['status_summary'] ?? '').trim();
                       final statusCode = (c['status_last'] ?? '').trim();
@@ -384,6 +399,10 @@ class _CustomersPageState extends State<CustomersPage> {
                               if (extraPhones.isNotEmpty) Text("أرقام إضافية: $extraPhones"),
                               Text("المحافظة: ${c['governorate'] ?? '-'}"),
                               Text("العنوان: ${(c['address'] ?? '').isEmpty ? '-' : c['address']!}"),
+                              if (lastModel.isNotEmpty || lastColor.isNotEmpty)
+                                Text("آخر جهاز: ${lastModel.isEmpty ? '-' : lastModel} / ${lastColor.isEmpty ? '-' : lastColor}"),
+                              if (modelsSummary.isNotEmpty) Text("ملخص الأجهزة: $modelsSummary"),
+                              if (colorsSummary.isNotEmpty) Text("ملخص الألوان: $colorsSummary"),
                               Text("عدد الأوردرات: $cnt"),
                               if (statusLabel.isNotEmpty)
                                 Padding(

@@ -880,9 +880,37 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       }
 
       final counts = <String, int>{};
+      final modelsCount = <String, int>{};
+      final colorsCount = <String, int>{};
       for (final o in list) {
         final s = _derivedOrderStatus(o, now);
         counts[s.code] = (counts[s.code] ?? 0) + 1;
+
+        final baseModel = _normalizeModelFromAi(o['model'] ?? '');
+        final baseColor = _normalizeColorNameAny(o['color'] ?? '');
+        final count = _parseIntSafe(o['count'] ?? '1');
+        final safeCount = count <= 0 ? 1 : count;
+        final modelParts = (o['models'] ?? '')
+            .split('|')
+            .map((x) => _normalizeModelFromAi(x))
+            .where((x) => x.isNotEmpty)
+            .toList();
+        final colorParts = (o['colors'] ?? '')
+            .split('|')
+            .map((x) => _normalizeColorNameAny(x))
+            .where((x) => x.isNotEmpty)
+            .toList();
+
+        for (int i = 0; i < safeCount; i++) {
+          final model = (i < modelParts.length && modelParts[i].isNotEmpty) ? modelParts[i] : baseModel;
+          final color = (i < colorParts.length && colorParts[i].isNotEmpty) ? colorParts[i] : baseColor;
+          if (model.isNotEmpty) {
+            modelsCount[model] = (modelsCount[model] ?? 0) + 1;
+          }
+          if (color.isNotEmpty) {
+            colorsCount[color] = (colorsCount[color] ?? 0) + 1;
+          }
+        }
       }
 
       final parts = <String>[];
@@ -898,6 +926,17 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       addPart('canceled', 'ملغي');
 
       c['status_summary'] = parts.join('، ');
+      c['last_model'] = _normalizeModelFromAi(last['model'] ?? '');
+      c['last_color'] = _normalizeColorNameAny(last['color'] ?? '');
+
+      String buildSummary(Map<String, int> map) {
+        if (map.isEmpty) return '';
+        final entries = map.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+        return entries.map((e) => "${e.key}×${e.value}").join('، ');
+      }
+
+      c['models_summary'] = buildSummary(modelsCount);
+      c['colors_summary'] = buildSummary(colorsCount);
     }
 
     customers
