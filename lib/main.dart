@@ -519,9 +519,12 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   String _customerKeyFromCustomer(Map<String, String> c) {
     final phone = _normalizePhone(c['phone'] ?? '');
     if (phone.isNotEmpty) return 'p:$phone';
+    final name = _normalizeArabicName(c['name'] ?? '');
+    final gov = _normalizeArabicName(c['governorate'] ?? '');
+    if (name.isNotEmpty && gov.isNotEmpty) return 'n:$name|g:$gov';
     final addr = _normalizeArabicName(c['address'] ?? '');
     if (addr.isNotEmpty) return 'a:$addr';
-    return 'n:${_normalizeArabicName(c['name'] ?? '')}|g:${_normalizeArabicName(c['governorate'] ?? '')}';
+    return 'n:$name|g:$gov';
   }
 
   bool _orderMatchesCustomer(Map<String, String> order, Map<String, String> customer) {
@@ -539,7 +542,11 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     final cAddr = _normalizeArabicName(customer['address'] ?? '');
     if (cAddr.isNotEmpty) {
       final oa = _normalizeArabicName(order['address'] ?? '');
-      if (oa.isNotEmpty && (oa.contains(cAddr) || cAddr.contains(oa))) return true;
+      final cGov = _normalizeArabicName(customer['governorate'] ?? '');
+      final og = _normalizeArabicName(order['governorate'] ?? '');
+      final govOk = cGov.isEmpty || og.isEmpty || og.contains(cGov) || cGov.contains(og);
+      final longEnough = cAddr.length >= 12 && oa.length >= 12;
+      if (govOk && longEnough && (oa.contains(cAddr) || cAddr.contains(oa))) return true;
     }
 
     final cName = _normalizeArabicName(customer['name'] ?? '');
@@ -805,9 +812,12 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   String _customerKeyForOrder(Map<String, String> order) {
     final phones = _orderPhones(order);
     if (phones.isNotEmpty) return 'p:${phones.first}';
+    final name = _normalizeArabicName(order['name'] ?? '');
+    final gov = _normalizeArabicName(order['governorate'] ?? '');
+    if (name.isNotEmpty && gov.isNotEmpty) return 'n:$name|g:$gov';
     final address = _normalizeArabicName(order['address'] ?? '');
     if (address.isNotEmpty) return 'a:$address';
-    return 'n:${_normalizeArabicName(order['name'] ?? '')}|g:${_normalizeArabicName(order['governorate'] ?? '')}';
+    return 'n:$name|g:$gov';
   }
 
   void _rebuildCustomersFromOrders() {
@@ -958,6 +968,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   Map<String, String>? _findExistingCustomer(Map<String, String> order) {
     final targetPhone = _normalizePhone(order['phone'] ?? '');
+    final targetName = _normalizeArabicName(order['name'] ?? '');
+    final targetGov = _normalizeArabicName(order['governorate'] ?? '');
     final targetAddress = _normalizeArabicName(order['address'] ?? '');
 
     for (final c in customers) {
@@ -966,11 +978,28 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         return c;
       }
     }
+    if (targetName.isNotEmpty) {
+      for (final c in customers) {
+        final cName = _normalizeArabicName(c['name'] ?? '');
+        if (cName.isEmpty) continue;
+        final sameName = cName == targetName || cName.contains(targetName) || targetName.contains(cName);
+        if (!sameName) continue;
+        final cGov = _normalizeArabicName(c['governorate'] ?? '');
+        if (targetGov.isNotEmpty && cGov.isNotEmpty) {
+          if (targetGov.contains(cGov) || cGov.contains(targetGov)) return c;
+        } else {
+          return c;
+        }
+      }
+    }
     if (targetAddress.isNotEmpty) {
       for (final c in customers) {
         final cAddress = _normalizeArabicName(c['address'] ?? '');
         if (cAddress.isEmpty) continue;
-        if (cAddress.contains(targetAddress) || targetAddress.contains(cAddress)) {
+        final cGov = _normalizeArabicName(c['governorate'] ?? '');
+        final govOk = targetGov.isEmpty || cGov.isEmpty || targetGov.contains(cGov) || cGov.contains(targetGov);
+        final longEnough = cAddress.length >= 12 && targetAddress.length >= 12;
+        if (govOk && longEnough && (cAddress.contains(targetAddress) || targetAddress.contains(cAddress))) {
           return c;
         }
       }

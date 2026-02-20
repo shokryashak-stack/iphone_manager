@@ -63,30 +63,30 @@ function normalizeSpaces(s) {
 }
 
 function detectModel(text) {
-  if (/(?:^|\s)(17|١٧)(?:\s|$)/.test(text)) return "17";
-  if (/(?:^|\s)(16|١٦)(?:\s|$)/.test(text)) return "16";
-  if (/(?:^|\s)(15|١٥)(?:\s|$)/.test(text)) return "15";
+  if (/(?:^|\s)(17|ظ،ظ§)(?:\s|$)/.test(text)) return "17";
+  if (/(?:^|\s)(16|ظ،ظ¦)(?:\s|$)/.test(text)) return "16";
+  if (/(?:^|\s)(15|ظ،ظ¥)(?:\s|$)/.test(text)) return "15";
   return null;
 }
 
 function detectColor(text) {
   const colors = [
-    "سلفر",
-    "فضي",
-    "اسود",
-    "أسود",
-    "ازرق",
-    "أزرق",
-    "دهبي",
-    "ذهبي",
-    "برتقالي",
-    "تيتانيوم",
-    "كحلي",
-    "ابيض",
-    "أبيض",
+    "ط³ظ„ظپط±",
+    "ظپط¶ظٹ",
+    "ط§ط³ظˆط¯",
+    "ط£ط³ظˆط¯",
+    "ط§ط²ط±ظ‚",
+    "ط£ط²ط±ظ‚",
+    "ط¯ظ‡ط¨ظٹ",
+    "ط°ظ‡ط¨ظٹ",
+    "ط¨ط±طھظ‚ط§ظ„ظٹ",
+    "طھظٹطھط§ظ†ظٹظˆظ…",
+    "ظƒط­ظ„ظٹ",
+    "ط§ط¨ظٹط¶",
+    "ط£ط¨ظٹط¶",
   ];
   const found = colors.find((c) => text.includes(c));
-  return found ? found.replace("أ", "ا") : null;
+  return found ? found.replace("ط£", "ط§") : null;
 }
 
 function detectCount(text) {
@@ -98,49 +98,49 @@ function detectCount(text) {
 
 function parseRuleBased(textRaw) {
   const text = normalizeSpaces(textRaw);
-  if (!text) return { action: "unknown", message: "اكتب أمر أولًا" };
+  if (!text) return { action: "unknown", message: "ط§ظƒطھط¨ ط£ظ…ط± ط£ظˆظ„ظ‹ط§" };
 
   const lower = text.toLowerCase();
-  if (text.includes("المخزن") || text.includes("الجرد") || lower.includes("check stock")) {
+  if (text.includes("ط§ظ„ظ…ط®ط²ظ†") || text.includes("ط§ظ„ط¬ط±ط¯") || lower.includes("check stock")) {
     return { action: "check_stock" };
   }
 
-  if (text.includes("امسح") || text.includes("احذف") || text.includes("حذف") || text.includes("شيل")) {
+  if (text.includes("ط§ظ…ط³ط­") || text.includes("ط§ط­ط°ظپ") || text.includes("ط­ط°ظپ") || text.includes("ط´ظٹظ„")) {
     const name = normalizeSpaces(
       text
-        .replace(/.*(اوردر|أوردر|طلب|عميل)/, "")
-        .replace(/.*(امسح|احذف|حذف|شيل)/, "")
+        .replace(/.*(ط§ظˆط±ط¯ط±|ط£ظˆط±ط¯ط±|ط·ظ„ط¨|ط¹ظ…ظٹظ„)/, "")
+        .replace(/.*(ط§ظ…ط³ط­|ط§ط­ط°ظپ|ط­ط°ظپ|ط´ظٹظ„)/, "")
     );
     return { action: "delete_order", name };
   }
 
-  if (text.includes("الغي") || text.includes("إلغي") || lower.includes("cancel")) {
+  if (text.includes("ط§ظ„ط؛ظٹ") || text.includes("ط¥ظ„ط؛ظٹ") || lower.includes("cancel")) {
     const name = normalizeSpaces(
       text
-        .replace(/.*(اوردر|أوردر|طلب|عميل)/, "")
-        .replace(/.*(الغي|إلغي|cancel)/i, "")
+        .replace(/.*(ط§ظˆط±ط¯ط±|ط£ظˆط±ط¯ط±|ط·ظ„ط¨|ط¹ظ…ظٹظ„)/, "")
+        .replace(/.*(ط§ظ„ط؛ظٹ|ط¥ظ„ط؛ظٹ|cancel)/i, "")
     );
     return { action: "cancel_order", name };
   }
 
   if (
-    text.includes("زود") ||
-    text.includes("ضيف") ||
-    text.includes("اضف") ||
-    text.includes("أضف") ||
+    text.includes("ط²ظˆط¯") ||
+    text.includes("ط¶ظٹظپ") ||
+    text.includes("ط§ط¶ظپ") ||
+    text.includes("ط£ط¶ظپ") ||
     lower.includes("add stock")
   ) {
     const model = detectModel(text);
     const color = detectColor(text);
     if (!model || !color) {
-      return { action: "unknown", message: "حدد الموديل واللون. مثال: زود 2 ايفون 16 سلفر" };
+      return { action: "unknown", message: "ط­ط¯ط¯ ط§ظ„ظ…ظˆط¯ظٹظ„ ظˆط§ظ„ظ„ظˆظ†. ظ…ط«ط§ظ„: ط²ظˆط¯ 2 ط§ظٹظپظˆظ† 16 ط³ظ„ظپط±" };
     }
     return { action: "add_stock", model, color, count: detectCount(text) };
   }
 
   return {
     action: "unknown",
-    message: "الأمر غير واضح. مثال: امسح أوردر محمد أو زود 2 ايفون 16 سلفر",
+    message: "ط§ظ„ط£ظ…ط± ط؛ظٹط± ظˆط§ط¶ط­. ظ…ط«ط§ظ„: ط§ظ…ط³ط­ ط£ظˆط±ط¯ط± ظ…ط­ظ…ط¯ ط£ظˆ ط²ظˆط¯ 2 ط§ظٹظپظˆظ† 16 ط³ظ„ظپط±",
   };
 }
 
@@ -197,7 +197,7 @@ async function generateWithFallbackModels(promptText) {
 
 function normalizeAction(payload) {
   const action = payload?.action;
-  if (!action) return { action: "unknown", message: "الامر غير واضح" };
+  if (!action) return { action: "unknown", message: "ط§ظ„ط§ظ…ط± ط؛ظٹط± ظˆط§ط¶ط­" };
 
   if (action === "delete_order" || action === "cancel_order") {
     return {
@@ -222,7 +222,7 @@ function normalizeAction(payload) {
     return { action: "check_stock" };
   }
 
-  return { action: "unknown", message: String(payload.message || "الامر غير واضح").trim() };
+  return { action: "unknown", message: String(payload.message || "ط§ظ„ط§ظ…ط± ط؛ظٹط± ظˆط§ط¶ط­").trim() };
 }
 
 function tryParseJson(text) {
@@ -256,18 +256,18 @@ function stripBidi(s) {
 
 function normalizeArabicDigits(s) {
   const map = {
-    "٠": "0",
-    "١": "1",
-    "٢": "2",
-    "٣": "3",
-    "٤": "4",
-    "٥": "5",
-    "٦": "6",
-    "٧": "7",
-    "٨": "8",
-    "٩": "9",
+    "ظ ": "0",
+    "ظ،": "1",
+    "ظ¢": "2",
+    "ظ£": "3",
+    "ظ¤": "4",
+    "ظ¥": "5",
+    "ظ¦": "6",
+    "ظ§": "7",
+    "ظ¨": "8",
+    "ظ©": "9",
   };
-  return String(s || "").replace(/[٠-٩]/g, (d) => map[d] || d);
+  return String(s || "").replace(/[ظ -ظ©]/g, (d) => map[d] || d);
 }
 
 function normalizePhone(phone) {
@@ -296,7 +296,7 @@ function normalizeModelNameAny(modelRaw) {
 function extractNormalizedModels(textRaw, count) {
   const text = normalizeSpaces(normalizeNewlines(stripBidi(normalizeArabicDigits(stripDiacritics(String(textRaw || ""))))));
   const digits = [];
-  const re = /(?:ايفون|iphone)?\s*(15|16|17)\s*(?:pro|max|برو|ماكس)?/gi;
+  const re = /(?:ط§ظٹظپظˆظ†|iphone)?\s*(15|16|17)\s*(?:pro|max|ط¨ط±ظˆ|ظ…ط§ظƒط³)?/gi;
   let m;
   while ((m = re.exec(text)) !== null) {
     const d = m[1];
@@ -313,20 +313,20 @@ function extractNormalizedModels(textRaw, count) {
 function normalizeColorNameAny(colorRaw) {
   const s = normalizeSpaces(stripDiacritics(String(colorRaw || ""))).toLowerCase();
   if (!s) return "";
-  if (s.includes("سلفر") || s.includes("سيلفر") || s.includes("فضي") || s.includes("فضه") || s.includes("silver") || s.includes("ابيض") || s.includes("أبيض") || s.includes("white")) return "سلفر";
-  if (s.includes("اسود") || s.includes("أسود") || s.includes("بلاك") || s.includes("black")) return "اسود";
-  if (s.includes("ازرق") || s.includes("أزرق") || s.includes("blue")) return "ازرق";
-  if (s.includes("دهبي") || s.includes("ذهبي") || s.includes("جولد") || s.includes("gold")) return "دهبي";
-  if (s.includes("برتقالي") || s.includes("اورنج") || s.includes("اورانج") || s.includes("أورنج") || s.includes("orange")) return "برتقالي";
-  if (s.includes("كحلي") || s.includes("navy")) return "كحلي";
-  if (s.includes("تيتانيوم") || s.includes("طبيعي") || s.includes("ناتشورال") || s.includes("natural")) return "تيتانيوم";
+  if (s.includes("ط³ظ„ظپط±") || s.includes("ط³ظٹظ„ظپط±") || s.includes("ظپط¶ظٹ") || s.includes("ظپط¶ظ‡") || s.includes("silver") || s.includes("ط§ط¨ظٹط¶") || s.includes("ط£ط¨ظٹط¶") || s.includes("white")) return "ط³ظ„ظپط±";
+  if (s.includes("ط§ط³ظˆط¯") || s.includes("ط£ط³ظˆط¯") || s.includes("ط¨ظ„ط§ظƒ") || s.includes("black")) return "ط§ط³ظˆط¯";
+  if (s.includes("ط§ط²ط±ظ‚") || s.includes("ط£ط²ط±ظ‚") || s.includes("blue")) return "ط§ط²ط±ظ‚";
+  if (s.includes("ط¯ظ‡ط¨ظٹ") || s.includes("ط°ظ‡ط¨ظٹ") || s.includes("ط¬ظˆظ„ط¯") || s.includes("gold")) return "ط¯ظ‡ط¨ظٹ";
+  if (s.includes("ط¨ط±طھظ‚ط§ظ„ظٹ") || s.includes("ط§ظˆط±ظ†ط¬") || s.includes("ط§ظˆط±ط§ظ†ط¬") || s.includes("ط£ظˆط±ظ†ط¬") || s.includes("orange")) return "ط¨ط±طھظ‚ط§ظ„ظٹ";
+  if (s.includes("ظƒط­ظ„ظٹ") || s.includes("navy")) return "ظƒط­ظ„ظٹ";
+  if (s.includes("طھظٹطھط§ظ†ظٹظˆظ…") || s.includes("ط·ط¨ظٹط¹ظٹ") || s.includes("ظ†ط§طھط´ظˆط±ط§ظ„") || s.includes("natural")) return "طھظٹطھط§ظ†ظٹظˆظ…";
   return "";
 }
 
 const STOCK_COLORS_BY_MODEL = {
-  "15 Pro Max": ["سلفر", "اسود", "ازرق"],
-  "16 Pro Max": ["سلفر", "دهبي", "اسود"],
-  "17 Pro Max": ["برتقالي", "سلفر", "اسود", "دهبي", "تيتانيوم", "كحلي"],
+  "15 Pro Max": ["ط³ظ„ظپط±", "ط§ط³ظˆط¯", "ط§ط²ط±ظ‚"],
+  "16 Pro Max": ["ط³ظ„ظپط±", "ط¯ظ‡ط¨ظٹ", "ط§ط³ظˆط¯"],
+  "17 Pro Max": ["ط¨ط±طھظ‚ط§ظ„ظٹ", "ط³ظ„ظپط±", "ط§ط³ظˆط¯", "ط¯ظ‡ط¨ظٹ", "طھظٹطھط§ظ†ظٹظˆظ…", "ظƒط­ظ„ظٹ"],
 };
 
 function normalizeColorForModel(modelKey, colorRaw) {
@@ -334,8 +334,8 @@ function normalizeColorForModel(modelKey, colorRaw) {
   if (!normalized) return "";
   const allowed = STOCK_COLORS_BY_MODEL[modelKey] || [];
   if (allowed.includes(normalized)) return normalized;
-  if (normalized === "ازرق" && allowed.includes("كحلي")) return "كحلي";
-  if (normalized === "كحلي" && allowed.includes("ازرق")) return "ازرق";
+  if (normalized === "ط§ط²ط±ظ‚" && allowed.includes("ظƒط­ظ„ظٹ")) return "ظƒط­ظ„ظٹ";
+  if (normalized === "ظƒط­ظ„ظٹ" && allowed.includes("ط§ط²ط±ظ‚")) return "ط§ط²ط±ظ‚";
   return normalized;
 }
 
@@ -347,16 +347,16 @@ function extractNormalizedColors(textRaw) {
     if (!colors.includes(c)) colors.push(c);
   };
 
-  // Try to focus on "لون" section first (often contains multiple colors)
-  const m = text.match(/(?:لون|اللون)\s*[:\/]?\s*([^\n]+)/i);
+  // Try to focus on "ظ„ظˆظ†" section first (often contains multiple colors)
+  const m = text.match(/(?:ظ„ظˆظ†|ط§ظ„ظ„ظˆظ†)\s*[:\/]?\s*([^\n]+)/i);
   if (m && m[1]) {
     const seg = normalizeSpaces(m[1]);
-    for (const part of seg.split(/[\u060C,|/]|(?:\s+و\s+)|(?:\s*&\s*)/).map((x) => x.trim()).filter(Boolean)) {
+    for (const part of seg.split(/[\u060C,|/]|(?:\s+ظˆ\s+)|(?:\s*&\s*)/).map((x) => x.trim()).filter(Boolean)) {
       push(normalizeColorNameAny(part));
     }
   }
 
-  // Also scan lines for standalone colors (e.g. "وسيلفر" on next line)
+  // Also scan lines for standalone colors (e.g. "ظˆط³ظٹظ„ظپط±" on next line)
   const lines = text.split("\n").map((l) => normalizeSpaces(l)).filter(Boolean);
   for (const line of lines) {
     // If line is short and contains a color word, capture it.
@@ -369,7 +369,7 @@ function extractNormalizedColors(textRaw) {
 
 function extractCount(textRaw) {
   const text = normalizeSpaces(normalizeNewlines(stripBidi(normalizeArabicDigits(stripDiacritics(String(textRaw || ""))))));
-  const m = text.match(/(\d+)\s*ايفونات|(\d+)\s*ايفون|(\d+)\s*iphone/i);
+  const m = text.match(/(\d+)\s*ط§ظٹظپظˆظ†ط§طھ|(\d+)\s*ط§ظٹظپظˆظ†|(\d+)\s*iphone/i);
   const n = m ? Number.parseInt(m[1] || m[2] || m[3] || "1", 10) : 1;
   return Number.isInteger(n) && n > 0 ? n : 1;
 }
@@ -399,10 +399,16 @@ function tryParseJsonArray(textRaw) {
 
 function splitWhatsAppBlocks(rawText) {
   const text = normalizeNewlines(rawText);
-  const parts = text
+  let parts = text
     .split(/(?=^\s*\[\d{1,2}\/\d{1,2},[^\]]+\]\s)/m)
     .map((p) => p.trim())
     .filter(Boolean);
+  if (parts.length <= 1) {
+    parts = text
+      .split(/(?=^\s*(?:ط§ط³ظ… ط§ظ„ط¹ظ…ظٹظ„|ط§ظ„ط§ط³ظ…)\s*\/?)/m)
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }
   return parts.length ? parts : [text.trim()].filter(Boolean);
 }
 
@@ -433,40 +439,40 @@ function parseWhatsAppBlockRuleBased(blockRaw) {
   const phone = phones[0] || "";
 
   let name = "";
-  const nameLine = lines.find((l) => /اسم العميل\s*\/|الاسم\s*/.test(l));
+  const nameLine = lines.find((l) => /ط§ط³ظ… ط§ظ„ط¹ظ…ظٹظ„\s*\/|ط§ظ„ط§ط³ظ…\s*/.test(l));
   if (nameLine) {
-    name = normalizeSpaces(nameLine.replace(/.*(?:اسم العميل|الاسم)\s*\/?/g, ""));
+    name = normalizeSpaces(nameLine.replace(/.*(?:ط§ط³ظ… ط§ظ„ط¹ظ…ظٹظ„|ط§ظ„ط§ط³ظ…)\s*\/?/g, ""));
   } else if (lines.length) {
     name = normalizeSpaces(lines[0].replace(/^\s*[:\\-]+/, ""));
   }
 
   let governorate = "";
-  const govLine = lines.find((l) => /المحافظه\s*\/|المحافظة\s*\/|محافظه|محافظة/.test(l));
+  const govLine = lines.find((l) => /ط§ظ„ظ…ط­ط§ظپط¸ظ‡\s*\/|ط§ظ„ظ…ط­ط§ظپط¸ط©\s*\/|ظ…ط­ط§ظپط¸ظ‡|ظ…ط­ط§ظپط¸ط©/.test(l));
   if (govLine) {
-    governorate = normalizeSpaces(govLine.replace(/.*(?:المحافظه|المحافظة|محافظه|محافظة)\s*\/?/g, ""));
+    governorate = normalizeSpaces(govLine.replace(/.*(?:ط§ظ„ظ…ط­ط§ظپط¸ظ‡|ط§ظ„ظ…ط­ط§ظپط¸ط©|ظ…ط­ط§ظپط¸ظ‡|ظ…ط­ط§ظپط¸ط©)\s*\/?/g, ""));
   } else {
-    const possibleGov = lines.find((l) => l.length <= 20 && !/ايفون|iphone|pro|max|لون|شحن|خصم|\d/.test(l));
+    const possibleGov = lines.find((l) => l.length <= 20 && !/ط§ظٹظپظˆظ†|iphone|pro|max|ظ„ظˆظ†|ط´ط­ظ†|ط®طµظ…|\d/.test(l));
     if (possibleGov) governorate = possibleGov;
   }
 
   let address = "";
-  const addrIdx = lines.findIndex((l) => /العنوان بالتفصيل\s*\/|العنوان\s*/.test(l));
+  const addrIdx = lines.findIndex((l) => /ط§ظ„ط¹ظ†ظˆط§ظ† ط¨ط§ظ„طھظپطµظٹظ„\s*\/|ط§ظ„ط¹ظ†ظˆط§ظ†\s*/.test(l));
   if (addrIdx !== -1) {
-    address = normalizeSpaces(lines[addrIdx].replace(/.*(?:العنوان بالتفصيل|العنوان)\s*\/?/g, ""));
+    address = normalizeSpaces(lines[addrIdx].replace(/.*(?:ط§ظ„ط¹ظ†ظˆط§ظ† ط¨ط§ظ„طھظپطµظٹظ„|ط§ظ„ط¹ظ†ظˆط§ظ†)\s*\/?/g, ""));
     const tail = lines
       .slice(addrIdx + 1, addrIdx + 4)
       .filter((l) => !/^(?:0?1[0-2,5]\d{8})$/.test(l));
     if (tail.length) address = normalizeSpaces([address, ...tail].filter(Boolean).join(" "));
   } else {
-    const arrowLines = lines.filter((l) => l.includes("👈") || l.includes("جوار") || l.includes("بجوار"));
+    const arrowLines = lines.filter((l) => l.includes("ًں‘ˆ") || l.includes("ط¬ظˆط§ط±") || l.includes("ط¨ط¬ظˆط§ط±"));
     if (arrowLines.length) address = normalizeSpaces(arrowLines.join(" "));
   }
 
   function detectModelFromOrderText(tRaw) {
     const t = normalizeArabicDigits(String(tRaw || "")).toLowerCase();
-    if (/(?:ايفون|iphone)\s*17/.test(t) || /17\s*(?:pro|max|برو|ماكس)/.test(t)) return "17";
-    if (/(?:ايفون|iphone)\s*16/.test(t) || /16\s*(?:pro|max|برو|ماكس)/.test(t)) return "16";
-    if (/(?:ايفون|iphone)\s*15/.test(t) || /15\s*(?:pro|max|برو|ماكس)/.test(t)) return "15";
+    if (/(?:ط§ظٹظپظˆظ†|iphone)\s*17/.test(t) || /17\s*(?:pro|max|ط¨ط±ظˆ|ظ…ط§ظƒط³)/.test(t)) return "17";
+    if (/(?:ط§ظٹظپظˆظ†|iphone)\s*16/.test(t) || /16\s*(?:pro|max|ط¨ط±ظˆ|ظ…ط§ظƒط³)/.test(t)) return "16";
+    if (/(?:ط§ظٹظپظˆظ†|iphone)\s*15/.test(t) || /15\s*(?:pro|max|ط¨ط±ظˆ|ظ…ط§ظƒط³)/.test(t)) return "15";
     const d = detectModelDigitAny(t);
     return d || "";
   }
@@ -481,14 +487,14 @@ function parseWhatsAppBlockRuleBased(blockRaw) {
   const nums = (textNoPhones.match(/\d{1,5}/g) || [])
     .map((x) => Number.parseInt(x, 10))
     .filter((n) => Number.isFinite(n));
-  const discountMatch = textDigits.match(/خصم\s*(\d{1,4})/);
+  const discountMatch = textDigits.match(/ط®طµظ…\s*(\d{1,4})/);
   const discount = discountMatch ? Number.parseInt(discountMatch[1], 10) : 0;
-  const shippingMatch = textDigits.match(/(\d{1,4})\s*(?:شحن|shipping)/i);
+  const shippingMatch = textDigits.match(/(\d{1,4})\s*(?:ط´ط­ظ†|shipping)/i);
   const shipping = shippingMatch ? Number.parseInt(shippingMatch[1], 10) : 0;
   const price = pickLargestPrice(nums);
   const codTotal = Math.max(0, price - (Number.isFinite(discount) ? discount : 0) + (Number.isFinite(shipping) ? shipping : 0));
 
-  const notesCandidates = lines.filter((l) => l.includes("🚫") || l.includes("الاستلام") || l.includes("ملحوظة"));
+  const notesCandidates = lines.filter((l) => l.includes("ًںڑ«") || l.includes("ط§ظ„ط§ط³طھظ„ط§ظ…") || l.includes("ظ…ظ„ط­ظˆط¸ط©"));
   const notes = normalizeSpaces(notesCandidates.join(" "));
 
   return {
@@ -596,6 +602,46 @@ function normalizeParsedOrder(obj) {
   };
 }
 
+function mergeParsedOrders(aiOrder, ruleOrder) {
+  const ai = aiOrder || {};
+  const rule = ruleOrder || {};
+
+  const pickText = (...vals) => {
+    for (const v of vals) {
+      const s = normalizeSpaces(v);
+      if (s) return s;
+    }
+    return "";
+  };
+
+  const pickArray = (...vals) => {
+    for (const v of vals) {
+      if (Array.isArray(v) && v.length) return v;
+    }
+    return [];
+  };
+
+  return {
+    ...rule,
+    ...ai,
+    name: pickText(ai.name, rule.name),
+    governorate: pickText(ai.governorate, rule.governorate),
+    address: pickText(ai.address, rule.address),
+    phone: pickText(ai.phone, rule.phone),
+    phones: pickArray(ai.phones, rule.phones),
+    model: pickText(ai.model, rule.model),
+    models: pickArray(ai.models, rule.models),
+    color: pickText(ai.color, rule.color),
+    colors: pickArray(ai.colors, rule.colors),
+    count: String(ai.count ?? rule.count ?? "1"),
+    price: String(ai.price ?? rule.price ?? ""),
+    shipping: String(ai.shipping ?? rule.shipping ?? "0"),
+    discount: String(ai.discount ?? rule.discount ?? "0"),
+    cod_total: String(ai.cod_total ?? rule.cod_total ?? ""),
+    notes: pickText(ai.notes, rule.notes),
+  };
+}
+
 app.post("/ai/command", async (req, res) => {
   try {
     const text = String(req.body?.text || "").trim();
@@ -653,37 +699,56 @@ app.post("/ai/parse_orders", async (req, res) => {
 
     const cached = getCachedParse(text);
     if (cached) return res.json(cached);
+    const blocks = splitWhatsAppBlocks(text);
+    const ruleParsedByBlock = blocks.map(parseWhatsAppBlockRuleBased);
 
     // If we have Gemini configured, let it do extraction; otherwise fallback to rule-based parsing.
     try {
       const prompt = `
 You extract iPhone order data from Egyptian Arabic WhatsApp messages.
-Return ONLY valid JSON Array, no markdown, no explanations.
-Each array item is ONE order.
+Return ONLY valid JSON array. No markdown. No extra text.
+Each output item is one order.
+Preserve input order and include source_index (0-based) for every order.
 
-Normalization rules (very important):
-- model MUST be exactly one of: "15 Pro Max", "16 Pro Max", "17 Pro Max"
-- color MUST be exactly one of: "سلفر","اسود","ازرق","دهبي","برتقالي","كحلي","تيتانيوم"
-- count MUST be integer >= 1
-- If the order requests multiple devices, set count accordingly.
-- If multiple colors are mentioned for a multi-device order, set "colors" as an array of normalized colors (length should be <= count).
-- If multiple models are mentioned for a multi-device order, set "models" as an array of normalized models (length should be <= count).
-- price, shipping, discount are integers as strings (no currency symbols)
-- phone should be an Egyptian mobile number (11 digits starting with 01) without spaces or +20
-- If there are multiple phones, return "phones" as array of normalized phones, and set "phone" as the first.
+Normalization:
+- model in {"15 Pro Max","16 Pro Max","17 Pro Max"}
+- color in {"سلفر","اسود","ازرق","دهبي","برتقالي","كحلي","تيتانيوم"}
+- count integer >= 1
+- phone Egyptian mobile 11 digits starts with 01
 - cod_total = price - discount + shipping
+- If multi-device: set models[] and colors[] (length <= count)
 
-Fields to output per order:
-{ "name","governorate","address","phone","phones","model","models","color","colors","count","price","shipping","discount","cod_total","notes" }
+Synonyms:
+- اورنج/اورانج => برتقالي
+- فضي/سيلفر/ابيض => سلفر
+- ازرق/كحلي same family (choose valid model color)
 
-Input WhatsApp text:
-${text}
+Governorate:
+- Use governorate only (القاهرة/الجيزة/القليوبية...) not district.
+
+Output schema:
+{ "source_index","name","governorate","address","phone","phones","model","models","color","colors","count","price","shipping","discount","cod_total","notes" }
+
+Input blocks:
+${JSON.stringify(blocks.map((b, i) => ({ source_index: i, text: b })))}
       `.trim();
 
       const raw = await generateWithFallbackModels(prompt);
       const arr = tryParseJsonArray(raw);
       if (arr && arr.length) {
-        const normalized = arr.map(normalizeParsedOrder).filter((o) => o.name || o.phone || o.address);
+        const normalized = arr
+          .map((o, idx) => {
+            const sourceIndexRaw = Number.parseInt(o?.source_index, 10);
+            const sourceIndex = Number.isInteger(sourceIndexRaw) ? sourceIndexRaw : idx;
+            const ruleOrder = sourceIndex >= 0 && sourceIndex < ruleParsedByBlock.length ? ruleParsedByBlock[sourceIndex] : null;
+            return {
+              source_index: sourceIndex,
+              order: normalizeParsedOrder(mergeParsedOrders(o, ruleOrder)),
+            };
+          })
+          .sort((a, b) => a.source_index - b.source_index)
+          .map((x) => x.order)
+          .filter((o) => o.name || o.phone || o.address);
         setCachedParse(text, normalized);
         return res.json(normalized);
       }
@@ -691,9 +756,7 @@ ${text}
       console.log("Gemini parse_orders fallback to rule-based:", aiError?.message || aiError);
     }
 
-    const blocks = splitWhatsAppBlocks(text);
-    const ruleParsed = blocks
-      .map(parseWhatsAppBlockRuleBased)
+    const ruleParsed = ruleParsedByBlock
       .map(normalizeParsedOrder)
       .filter((o) => o.name || o.phone || o.address);
 
