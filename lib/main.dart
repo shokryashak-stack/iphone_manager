@@ -1970,7 +1970,11 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           final returnedByStatus = signingStatus.contains('return') ||
               signingStatus.contains('returned') ||
               signingStatus.contains('مرتجع');
-          final isDelivered = returnedByStatus ? false : (deliveredByStatus || fee > 0);
+          final hasSigningStatus = signingStatus.isNotEmpty;
+          final inferredDeliveredByAmount = amount >= 4000;
+          final isDelivered = returnedByStatus
+              ? false
+              : (deliveredByStatus || fee > 0 || (!hasSigningStatus && inferredDeliveredByAmount));
 
           if (isDelivered && isExternalTransfer) cashDeliveredCount++;
 
@@ -2036,7 +2040,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               }
 
               // Prevent false positives: if governorate conflicts, require near-exact name.
-              if (govMismatch && nameScore < 0.9) {
+              if (govMismatch && nameScore < 0.9 && phoneScore < 1.0) {
                 continue;
               }
 
@@ -2045,7 +2049,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                 score *= 0.8;
               }
               allScores.add((idx: oi, score: score));
-              if (score >= 0.35) {
+              if (score >= 0.30) {
                 candidateScores.add((idx: oi, score: score));
               }
                
@@ -2079,12 +2083,25 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               }
             }
 
-            if (resolvedIndex == null && bestIndex != -1 && bestScore >= 0.68) {
+            if (resolvedIndex == null && candidateScores.isNotEmpty) {
+              final top = candidateScores.first;
+              final topOrder = orders[top.idx];
+              final topNameScore = candidateNameScore[top.idx] ?? 0.0;
+              final topGovScore = _governorateMatchScore(sheetGov, topOrder['governorate'] ?? '');
+              final topPhones = _orderPhones(topOrder).toSet();
+              final topPhoneExact = sheetPhone.isNotEmpty && topPhones.contains(sheetPhone);
+              if (topPhoneExact && (topGovScore >= 0.85 || topNameScore >= 0.50)) {
+                resolvedIndex = top.idx;
+                resolvedScore = top.score < 0.95 ? 0.95 : top.score;
+              }
+            }
+
+            if (resolvedIndex == null && bestIndex != -1 && bestScore >= 0.55) {
               resolvedIndex = bestIndex;
               resolvedScore = bestScore;
             }
 
-            if (resolvedIndex != null && resolvedScore >= 0.62) {
+            if (resolvedIndex != null && resolvedScore >= 0.52) {
               final bestMatchedIndex = resolvedIndex;
               usedOrderIndices.add(bestMatchedIndex);
               orders[bestMatchedIndex]['sheet_matched_pending'] = 'true';
