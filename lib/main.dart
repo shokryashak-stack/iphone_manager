@@ -2030,7 +2030,6 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               final order = orders[oi];
               final status = _normalizeArabicName(order['status'] ?? '');
               if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
-              if ((order['sheet_matched_pending'] ?? '') == 'true') continue;
 
               final nameScore = _nameMatchScore(sheetName, order['name'] ?? '');
               final govScore = _governorateMatchScore(sheetGov, order['governorate'] ?? '');
