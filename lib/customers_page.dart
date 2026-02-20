@@ -399,10 +399,41 @@ class _CustomersPageState extends State<CustomersPage> {
                               if (extraPhones.isNotEmpty) Text("أرقام إضافية: $extraPhones"),
                               Text("المحافظة: ${c['governorate'] ?? '-'}"),
                               Text("العنوان: ${(c['address'] ?? '').isEmpty ? '-' : c['address']!}"),
-                              if (lastModel.isNotEmpty || lastColor.isNotEmpty)
-                                Text("آخر جهاز: ${lastModel.isEmpty ? '-' : lastModel} / ${lastColor.isEmpty ? '-' : lastColor}"),
-                              if (modelsSummary.isNotEmpty) Text("ملخص الأجهزة: $modelsSummary"),
-                              if (colorsSummary.isNotEmpty) Text("ملخص الألوان: $colorsSummary"),
+                              if (lastModel.isNotEmpty || lastColor.isNotEmpty || modelsSummary.isNotEmpty || colorsSummary.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  alignment: WrapAlignment.end,
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    if (lastModel.isNotEmpty)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: (isDark ? Colors.blueGrey : Colors.blue).withValues(alpha: 0.14),
+                                          borderRadius: BorderRadius.circular(999),
+                                          border: Border.all(color: (isDark ? Colors.blueGrey : Colors.blue).withValues(alpha: 0.35)),
+                                        ),
+                                        child: Text("الموديل: $lastModel", style: const TextStyle(fontWeight: FontWeight.w700)),
+                                      ),
+                                    if (lastColor.isNotEmpty)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: (isDark ? Colors.teal : Colors.green).withValues(alpha: 0.14),
+                                          borderRadius: BorderRadius.circular(999),
+                                          border: Border.all(color: (isDark ? Colors.teal : Colors.green).withValues(alpha: 0.35)),
+                                        ),
+                                        child: Text("اللون: $lastColor", style: const TextStyle(fontWeight: FontWeight.w700)),
+                                      ),
+                                  ],
+                                ),
+                                if (modelsSummary.isNotEmpty) Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text("الأجهزة: $modelsSummary"),
+                                ),
+                                if (colorsSummary.isNotEmpty) Text("الألوان: $colorsSummary"),
+                              ],
                               Text("عدد الأوردرات: $cnt"),
                               if (statusLabel.isNotEmpty)
                                 Padding(

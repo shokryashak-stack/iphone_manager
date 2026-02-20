@@ -30,7 +30,6 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
   void initState() {
     super.initState();
     _orders = widget.orders.map((e) => Map<String, String>.from(e)).toList();
-    _orders.sort((a, b) => _confidenceOf(a).compareTo(_confidenceOf(b)));
     for (final o in _orders) {
       _ensureColorsForCount(o);
       _normalizeOrderColorsForModels(o);
