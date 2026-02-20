@@ -1993,6 +1993,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
             final allScores = <({int idx, double score})>[];
             final candidateGovMismatch = <int, bool>{};
             final candidateNameScore = <int, double>{};
+            final candidateGovScore = <int, double>{};
+            final candidateAmountScore = <int, double>{};
+            final candidatePhoneScore = <int, double>{};
             for (var oi = 0; oi < orders.length; oi++) {
               if (usedOrderIndices.contains(oi)) continue;
               final order = orders[oi];
@@ -2009,6 +2012,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               candidateNameScore[oi] = nameScore;
               final orderPhones = _orderPhones(order).toSet();
               final phoneScore = (sheetPhone.isNotEmpty && orderPhones.contains(sheetPhone)) ? 1.0 : 0.0;
+              candidatePhoneScore[oi] = phoneScore;
               final codTotal = _parseIntSafe(order['cod_total'] ?? '');
               final basePrice = _parseIntSafe(order['price'] ?? '');
               final shippingFee = _parseIntSafe(order['shipping'] ?? '');
@@ -2038,6 +2042,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                   amountScore = 0.45;
                 }
               }
+              candidateAmountScore[oi] = amountScore;
+              candidateGovScore[oi] = govScore;
 
               // Prevent false positives: if governorate conflicts, require near-exact name.
               if (govMismatch && nameScore < 0.9 && phoneScore < 1.0) {
@@ -2045,6 +2051,13 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               }
 
               var score = (nameScore * 0.45) + (govScore * 0.20) + (amountScore * 0.20) + (phoneScore * 0.15);
+              if (phoneScore >= 1.0 && amountScore >= 0.75) {
+                score = score < 0.93 ? 0.93 : score;
+              } else if (amountScore >= 0.95 && govScore >= 0.85 && nameScore >= 0.20) {
+                score = score < 0.72 ? 0.72 : score;
+              } else if (amountScore >= 0.75 && govScore >= 0.85 && nameScore >= 0.35) {
+                score = score < 0.62 ? 0.62 : score;
+              }
               if (govMismatch) {
                 score *= 0.8;
               }
@@ -2093,6 +2106,17 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               if (topPhoneExact && (topGovScore >= 0.85 || topNameScore >= 0.50)) {
                 resolvedIndex = top.idx;
                 resolvedScore = top.score < 0.95 ? 0.95 : top.score;
+              } else {
+                final secondScore = candidateScores.length > 1 ? candidateScores[1].score : 0.0;
+                final topAmountScore = candidateAmountScore[top.idx] ?? 0.0;
+                final topGov = candidateGovScore[top.idx] ?? 0.0;
+                if (top.score >= 0.58 && (top.score - secondScore) >= 0.08) {
+                  resolvedIndex = top.idx;
+                  resolvedScore = top.score;
+                } else if (topAmountScore >= 0.95 && topGov >= 0.85) {
+                  resolvedIndex = top.idx;
+                  resolvedScore = top.score < 0.66 ? 0.66 : top.score;
+                }
               }
             }
 
@@ -2101,7 +2125,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               resolvedScore = bestScore;
             }
 
-            if (resolvedIndex != null && resolvedScore >= 0.52) {
+            if (resolvedIndex != null && resolvedScore >= 0.50) {
               final bestMatchedIndex = resolvedIndex;
               usedOrderIndices.add(bestMatchedIndex);
               orders[bestMatchedIndex]['sheet_matched_pending'] = 'true';
@@ -2125,12 +2149,13 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
             } else {
               unmatchedDelivered++;
               final inferred = _inferCountsFromSheetAmount(amount);
+              final topScore = candidateScores.isNotEmpty ? candidateScores.first.score.toStringAsFixed(2) : '0.00';
               unmatchedRows.add({
                 'sheet_name': sheetName,
                 'sheet_governorate': sheetGov,
                 'sheet_phone': sheetPhone,
                 'sheet_amount': amount.toStringAsFixed(0),
-                'reason': 'no_confident_match',
+                'reason': 'no_confident_match (top=$topScore)',
                 'inferred_15': (inferred['15'] ?? 0).toString(),
                 'inferred_16': (inferred['16'] ?? 0).toString(),
                 'inferred_17': (inferred['17'] ?? 0).toString(),
