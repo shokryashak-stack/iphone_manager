@@ -1126,6 +1126,61 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     }
   }
 
+  Future<Map<String, String>?> _resolveUnmatchedRowWithGemini({
+    required String sheetName,
+    required String sheetGov,
+    required double amount,
+    required List<Map<String, String>> candidateCustomers,
+  }) async {
+    if (candidateCustomers.isEmpty) return null;
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/ai/resolve_unmatched_row');
+
+    try {
+      final body = <String, dynamic>{
+        'row': {
+          'receiver_name': sheetName,
+          'destination': sheetGov,
+          'cod_amount': amount,
+        },
+        'candidates': candidateCustomers.map((c) {
+          return <String, dynamic>{
+            'name': c['name'] ?? '',
+            'governorate': c['governorate'] ?? '',
+            'phone': c['phone'] ?? '',
+            'address': c['address'] ?? '',
+            'last_model': c['last_model'] ?? '',
+            'last_color': c['last_color'] ?? '',
+            'models_summary': c['models_summary'] ?? '',
+            'colors_summary': c['colors_summary'] ?? '',
+            'score': c['score'] ?? '',
+          };
+        }).toList(),
+      };
+
+      final response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return null;
+
+      String s(dynamic v) => (v ?? '').toString().trim();
+      return <String, String>{
+        'status': s(decoded['status']),
+        'model': s(decoded['model']),
+        'color': s(decoded['color']),
+        'confidence': s(decoded['confidence']),
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
   Map<String, String> _dynamicOrderToStringMap(Map<String, dynamic> e) {
     String s(dynamic v) => (v ?? '').toString().trim();
 
@@ -2211,6 +2266,82 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               resolvedScore = bestScore;
             }
 
+            void unresolvedAdd() {
+              unmatchedDelivered++;
+              final inferred = _inferCountsFromSheetAmount(amount);
+              final topScore = candidateScores.isNotEmpty ? candidateScores.first.score.toStringAsFixed(2) : '0.00';
+              unmatchedRows.add({
+                'sheet_name': sheetName,
+                'sheet_governorate': sheetGov,
+                'sheet_phone': sheetPhone,
+                'sheet_amount': amount.toStringAsFixed(0),
+                'reason': 'manual_select_needed (top=$topScore)',
+                'inferred_15': (inferred['15'] ?? 0).toString(),
+                'inferred_16': (inferred['16'] ?? 0).toString(),
+                'inferred_17': (inferred['17'] ?? 0).toString(),
+              });
+              auto15 += inferred['15'] ?? 0;
+              auto16 += inferred['16'] ?? 0;
+              auto17 += inferred['17'] ?? 0;
+            }
+
+            if (resolvedIndex == null) {
+              final customerCandidates = customers
+                  .map((c) {
+                    final nameScore = _nameMatchScore(sheetName, c['name'] ?? '');
+                    final govScore = _governorateMatchScore(sheetGov, c['governorate'] ?? '');
+                    final score = (nameScore * 0.7) + (govScore * 0.3);
+                    return <String, String>{
+                      'name': c['name'] ?? '',
+                      'governorate': c['governorate'] ?? '',
+                      'phone': c['phone'] ?? '',
+                      'address': c['address'] ?? '',
+                      'last_model': c['last_model'] ?? '',
+                      'last_color': c['last_color'] ?? '',
+                      'models_summary': c['models_summary'] ?? '',
+                      'colors_summary': c['colors_summary'] ?? '',
+                      'score': score.toStringAsFixed(2),
+                    };
+                  })
+                  .where((c) => (double.tryParse(c['score'] ?? '0') ?? 0) > 0.20)
+                  .toList()
+                ..sort((a, b) => (double.tryParse(b['score'] ?? '0') ?? 0).compareTo(double.tryParse(a['score'] ?? '0') ?? 0));
+
+              final topCustomerCandidates = customerCandidates.take(5).toList();
+              final aiFallback = await _resolveUnmatchedRowWithGemini(
+                sheetName: sheetName,
+                sheetGov: sheetGov,
+                amount: amount,
+                candidateCustomers: topCustomerCandidates,
+              );
+
+              if (aiFallback != null && (aiFallback['status'] ?? '') == 'matched') {
+                final aiModel = _normalizeModelFromAi(aiFallback['model'] ?? '');
+                final aiColorRaw = aiFallback['color'] ?? '';
+                final aiColor = aiModel.isNotEmpty ? _normalizeColorForModel(aiModel, aiColorRaw) : _normalizeColorNameAny(aiColorRaw);
+                final aiConfidence = aiFallback['confidence'] ?? '';
+
+                matchedDelivered++;
+                matchedRows.add({
+                  'sheet_name': sheetName,
+                  'sheet_governorate': sheetGov,
+                  'sheet_phone': sheetPhone,
+                  'sheet_amount': amount.toStringAsFixed(0),
+                  'order_name': topCustomerCandidates.isNotEmpty ? (topCustomerCandidates.first['name'] ?? sheetName) : sheetName,
+                  'order_governorate': topCustomerCandidates.isNotEmpty ? (topCustomerCandidates.first['governorate'] ?? sheetGov) : sheetGov,
+                  'order_model': aiModel,
+                  'order_color': aiColor,
+                  'score': 'AI_Fallback${aiConfidence.isNotEmpty ? "($aiConfidence)" : ""}',
+                });
+
+                if (aiModel == '15 Pro Max') auto15++;
+                if (aiModel == '16 Pro Max') auto16++;
+                if (aiModel == '17 Pro Max') auto17++;
+              } else {
+                unresolvedAdd();
+              }
+            }
+
             if (resolvedIndex != null && resolvedScore >= 0.50) {
               final bestMatchedIndex = resolvedIndex;
               usedOrderIndices.add(bestMatchedIndex);
@@ -2232,23 +2363,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               auto15 += countsByModel['15'] ?? 0;
               auto16 += countsByModel['16'] ?? 0;
               auto17 += countsByModel['17'] ?? 0;
-            } else {
-              unmatchedDelivered++;
-              final inferred = _inferCountsFromSheetAmount(amount);
-              final topScore = candidateScores.isNotEmpty ? candidateScores.first.score.toStringAsFixed(2) : '0.00';
-              unmatchedRows.add({
-                'sheet_name': sheetName,
-                'sheet_governorate': sheetGov,
-                'sheet_phone': sheetPhone,
-                'sheet_amount': amount.toStringAsFixed(0),
-                'reason': 'manual_select_needed (top=$topScore)',
-                'inferred_15': (inferred['15'] ?? 0).toString(),
-                'inferred_16': (inferred['16'] ?? 0).toString(),
-                'inferred_17': (inferred['17'] ?? 0).toString(),
-              });
-              auto15 += inferred['15'] ?? 0;
-              auto16 += inferred['16'] ?? 0;
-              auto17 += inferred['17'] ?? 0;
+            } else if (resolvedIndex == null) {
+              unresolvedAdd();
             }
           }
         }

@@ -30,7 +30,7 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     service: "iphone_manager_ai_proxy",
-    endpoints: ["/health", "/ai/command", "/ai/parse_orders", "/ai/match_delivery"],
+    endpoints: ["/health", "/ai/command", "/ai/parse_orders", "/ai/match_delivery", "/ai/resolve_unmatched_row"],
   });
 });
 
@@ -836,6 +836,81 @@ ${JSON.stringify(compact)}
     });
   } catch (error) {
     return res.json({ match_candidate_id: -1, confidence: 0, reason: "fallback_no_match" });
+  }
+});
+
+app.post("/ai/resolve_unmatched_row", async (req, res) => {
+  try {
+    const row = req.body?.row || {};
+    const candidates = Array.isArray(req.body?.candidates) ? req.body.candidates : [];
+    if (!candidates.length) {
+      return res.json({ status: "manual" });
+    }
+
+    const compact = candidates.slice(0, 6).map((c) => ({
+      name: normalizeSpaces(c?.name),
+      governorate: normalizeSpaces(c?.governorate),
+      phone: normalizePhone(c?.phone),
+      address: normalizeSpaces(c?.address),
+      last_model: normalizeModelNameAny(c?.last_model),
+      last_color: normalizeColorNameAny(c?.last_color),
+      models_summary: normalizeSpaces(c?.models_summary),
+      colors_summary: normalizeSpaces(c?.colors_summary),
+      score: String(c?.score ?? ""),
+    }));
+
+    const prompt = `
+You are resolving one unmatched delivery row using known customers history.
+Return ONLY JSON object. No markdown.
+
+Output JSON schema:
+{"status":"matched|manual","model":"15 Pro Max|16 Pro Max|17 Pro Max","color":"سلفر|اسود|ازرق|دهبي|برتقالي|كحلي|تيتانيوم","confidence":0.0}
+
+Rules:
+- Prefer exact/near name + governorate match.
+- Ignore price as primary signal.
+- Use customer last_model/last_color and summaries to infer likely model/color.
+- If not confident, return {"status":"manual"}.
+- confidence must be 0..1 when status is matched.
+
+Row:
+${JSON.stringify({
+  receiver_name: normalizeSpaces(row?.receiver_name),
+  destination: normalizeSpaces(row?.destination),
+  cod_amount: String(row?.cod_amount ?? ""),
+})}
+
+Candidates:
+${JSON.stringify(compact)}
+    `.trim();
+
+    const raw = await generateWithFallbackModels(prompt);
+    const parsed = tryParseJson(raw) || {};
+
+    const statusRaw = String(parsed?.status || "").toLowerCase().trim();
+    if (statusRaw !== "matched") {
+      return res.json({ status: "manual" });
+    }
+
+    const model = normalizeModelNameAny(parsed?.model);
+    const color = model
+      ? normalizeColorForModel(model, parsed?.color)
+      : normalizeColorNameAny(parsed?.color);
+    const confidence = Number(parsed?.confidence);
+    const safeConfidence = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
+
+    if (!model || !color || safeConfidence < 0.55) {
+      return res.json({ status: "manual" });
+    }
+
+    return res.json({
+      status: "matched",
+      model,
+      color,
+      confidence: Number(safeConfidence.toFixed(2)),
+    });
+  } catch (_) {
+    return res.json({ status: "manual" });
   }
 });
 
