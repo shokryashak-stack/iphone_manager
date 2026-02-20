@@ -2063,6 +2063,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
             final candidateGovScore = <int, double>{};
             final candidateAmountScore = <int, double>{};
             final candidatePhoneScore = <int, double>{};
+            final candidateCustomerFit = <int, bool>{};
             for (var oi = 0; oi < orders.length; oi++) {
               if (usedOrderIndices.contains(oi)) continue;
               final order = orders[oi];
@@ -2080,6 +2081,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               final phoneScore = (sheetPhone.isNotEmpty && orderPhones.contains(sheetPhone)) ? 1.0 : 0.0;
               candidatePhoneScore[oi] = phoneScore;
               final customerFit = matchedCustomer != null && _orderMatchesCustomer(order, matchedCustomer);
+              candidateCustomerFit[oi] = customerFit;
               if (matchedCustomer != null && !customerFit && phoneScore < 1.0 && nameScore < 0.9) {
                 continue;
               }
@@ -2187,7 +2189,14 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                 final secondScore = candidateScores.length > 1 ? candidateScores[1].score : 0.0;
                 final topAmountScore = candidateAmountScore[top.idx] ?? 0.0;
                 final topGov = candidateGovScore[top.idx] ?? 0.0;
-                if (top.score >= 0.58 && (top.score - secondScore) >= 0.08) {
+                final topCustomerFit = candidateCustomerFit[top.idx] ?? false;
+                if (topCustomerFit && top.score >= 0.50 && topNameScore >= 0.45 && topGov >= 0.85) {
+                  resolvedIndex = top.idx;
+                  resolvedScore = top.score < 0.82 ? 0.82 : top.score;
+                } else if (top.score >= 0.58 && (top.score - secondScore) >= 0.08) {
+                  resolvedIndex = top.idx;
+                  resolvedScore = top.score;
+                } else if (top.score >= 0.50 && topNameScore >= 0.55 && topGov >= 0.85) {
                   resolvedIndex = top.idx;
                   resolvedScore = top.score;
                 } else if (topAmountScore >= 0.95 && topGov >= 0.85) {
