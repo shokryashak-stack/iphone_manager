@@ -1115,6 +1115,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           .timeout(const Duration(seconds: 20));
 
       if (response.statusCode != 200) return null;
+      print('AI /resolve_unmatched_row raw response: ${response.body}');
       final decoded = jsonDecode(response.body);
       if (decoded is! Map) return null;
       final idx = int.tryParse((decoded['match_candidate_id'] ?? '').toString()) ?? -1;
@@ -1643,6 +1644,66 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     final union = t1.union(t2).length;
     if (union == 0) return 0;
     return inter / union;
+  }
+
+  List<String> _nameTokensForFuzzy(String input) {
+    final normalized = _normalizeArabicName(input)
+        .replaceAll(RegExp(r'[^a-z0-9\u0600-\u06FF\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (normalized.isEmpty) return const <String>[];
+
+    const stop = <String>{
+      'السيد',
+      'سيد',
+      'دكتور',
+      'الدكتور',
+      'استاذ',
+      'الأستاذ',
+      'الاستاذ',
+      'الاستاذه',
+      'استاذه',
+      'مهندس',
+      'الاسم',
+      'اسم',
+      'العميل',
+      'عميل',
+      'المستلم',
+      'مستلم',
+    };
+
+    return normalized
+        .split(' ')
+        .map((x) => x.trim())
+        .where((x) => x.isNotEmpty && x.length > 1 && !stop.contains(x))
+        .toList();
+  }
+
+  bool _tokenMatch(String a, String b) {
+    if (a.isEmpty || b.isEmpty) return false;
+    if (a == b) return true;
+    return a.contains(b) || b.contains(a);
+  }
+
+  double _tokenScore(List<String> sheetTokens, List<String> customerTokens) {
+    if (sheetTokens.isEmpty || customerTokens.isEmpty) return 0.0;
+    var exact = 0.0;
+    var partial = 0.0;
+    for (final st in sheetTokens) {
+      var best = 0.0;
+      for (final ct in customerTokens) {
+        if (st == ct) {
+          best = 1.0;
+          break;
+        }
+        if (_tokenMatch(st, ct) && best < 0.6) {
+          best = 0.6;
+        }
+      }
+      if (best == 1.0) exact += 1.0;
+      if (best == 0.6) partial += 1.0;
+    }
+    return ((exact + (partial * 0.6)) / sheetTokens.length).clamp(0.0, 1.0);
   }
 
   String _normalizeGovernorateForMatch(String input) {
@@ -2286,28 +2347,42 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
             }
 
             if (resolvedIndex == null) {
-              final customerCandidates = customers
-                  .map((c) {
-                    final nameScore = _nameMatchScore(sheetName, c['name'] ?? '');
-                    final govScore = _governorateMatchScore(sheetGov, c['governorate'] ?? '');
-                    final score = (nameScore * 0.7) + (govScore * 0.3);
-                    return <String, String>{
-                      'name': c['name'] ?? '',
-                      'governorate': c['governorate'] ?? '',
-                      'phone': c['phone'] ?? '',
-                      'address': c['address'] ?? '',
-                      'last_model': c['last_model'] ?? '',
-                      'last_color': c['last_color'] ?? '',
-                      'models_summary': c['models_summary'] ?? '',
-                      'colors_summary': c['colors_summary'] ?? '',
-                      'score': score.toStringAsFixed(2),
-                    };
-                  })
-                  .where((c) => (double.tryParse(c['score'] ?? '0') ?? 0) > 0.20)
-                  .toList()
-                ..sort((a, b) => (double.tryParse(b['score'] ?? '0') ?? 0).compareTo(double.tryParse(a['score'] ?? '0') ?? 0));
+              final sheetTokens = _nameTokensForFuzzy(sheetName);
+              final sheetGovNorm = _normalizeGovernorateForMatch(sheetGov);
 
+              final customerCandidates = <Map<String, String>>[];
+              for (final c in customers) {
+                final customerName = c['name'] ?? '';
+                final customerGov = c['governorate'] ?? '';
+                final customerGovNorm = _normalizeGovernorateForMatch(customerGov);
+                final govCompatible = sheetGovNorm.isEmpty || customerGovNorm.isEmpty || sheetGovNorm.contains(customerGovNorm) || customerGovNorm.contains(sheetGovNorm);
+                if (!govCompatible) continue;
+
+                final customerTokens = _nameTokensForFuzzy(customerName);
+                if (sheetTokens.isEmpty || customerTokens.isEmpty) continue;
+
+                final anyTokenMatch = sheetTokens.any((st) => customerTokens.any((ct) => _tokenMatch(st, ct)));
+                if (!anyTokenMatch) continue;
+
+                final tScore = _tokenScore(sheetTokens, customerTokens);
+                if (tScore <= 0) continue;
+                customerCandidates.add({
+                  'name': customerName,
+                  'governorate': customerGov,
+                  'phone': c['phone'] ?? '',
+                  'address': c['address'] ?? '',
+                  'last_model': c['last_model'] ?? '',
+                  'last_color': c['last_color'] ?? '',
+                  'models_summary': c['models_summary'] ?? '',
+                  'colors_summary': c['colors_summary'] ?? '',
+                  'score': tScore.toStringAsFixed(2),
+                });
+              }
+
+              customerCandidates.sort((a, b) => (double.tryParse(b['score'] ?? '0') ?? 0).compareTo(double.tryParse(a['score'] ?? '0') ?? 0));
               final topCustomerCandidates = customerCandidates.take(5).toList();
+              print('Unmatched row sheetName="$sheetName", sheetGov="$sheetGov", tokens=$sheetTokens');
+              print('Top candidates for AI fallback: ${topCustomerCandidates.map((c) => "${c['name']}|${c['governorate']}|score=${c['score']}").join(' ; ')}');
               final aiFallback = await _resolveUnmatchedRowWithGemini(
                 sheetName: sheetName,
                 sheetGov: sheetGov,
