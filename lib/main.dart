@@ -1794,7 +1794,6 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   bool _isOrderClosedForSheetMatch(Map<String, String> order) {
     final status = _normalizeArabicName(order['status'] ?? '');
     if (status == 'delivered' || status == 'cancelled' || status == 'canceled') return true;
-    if ((order['sheet_matched_pending'] ?? '') == 'true') return true;
     return false;
   }
 
@@ -1877,9 +1876,14 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   Future<void> _manualMatchUnmatchedRow(Map<String, String> row) async {
     final sheetName = (row['sheet_name'] ?? '').trim();
     final sheetGov = (row['sheet_governorate'] ?? '').trim();
+    final blockedIndices = <int>{};
+    for (int i = 0; i < orders.length; i++) {
+      if ((orders[i]['sheet_matched_pending'] ?? '') == 'true') blockedIndices.add(i);
+    }
     final candidates = _rankOrdersForSheetRow(
       sheetName: sheetName,
       sheetGov: sheetGov,
+      excludedOrderIndices: blockedIndices,
     ).take(12).toList();
     if (candidates.isEmpty) {
       if (!mounted) return;
@@ -2180,6 +2184,13 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     if (!mounted || result == null) return;
 
     try {
+      for (final order in orders) {
+        if ((order['sheet_matched_pending'] ?? '') == 'true') {
+          order['sheet_matched_pending'] = 'false';
+          order['sheet_matched_at'] = '';
+        }
+      }
+
       List<List<dynamic>> rows = [];
       String ext = (result.files.single.extension ?? '').toLowerCase();
       final filePath = result.files.single.path;
