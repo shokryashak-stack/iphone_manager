@@ -2016,12 +2016,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       count16Controller.text = (current16 + (counts['16'] ?? 0)).toString();
       count17Controller.text = (current17 + (counts['17'] ?? 0)).toString();
 
-      _lastSheetUnmatchedRows.removeWhere((r) =>
-          identical(r, unmatchedRow) ||
-          ((r['sheet_name'] ?? '') == (unmatchedRow['sheet_name'] ?? '') &&
-              (r['sheet_governorate'] ?? '') == (unmatchedRow['sheet_governorate'] ?? '') &&
-              (r['sheet_phone'] ?? '') == (unmatchedRow['sheet_phone'] ?? '') &&
-              (r['sheet_amount'] ?? '') == (unmatchedRow['sheet_amount'] ?? '')));
+      _removeUnmatchedRowFromAnalysis(unmatchedRow);
 
       _lastSheetMatchedRows.insert(0, {
         'sheet_name': unmatchedRow['sheet_name'] ?? '',
@@ -2044,6 +2039,152 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تمت المطابقة اليدوية بنجاح")));
+  }
+
+  void _removeUnmatchedRowFromAnalysis(Map<String, String> unmatchedRow) {
+    _lastSheetUnmatchedRows.removeWhere((r) =>
+        identical(r, unmatchedRow) ||
+        ((r['sheet_name'] ?? '') == (unmatchedRow['sheet_name'] ?? '') &&
+            (r['sheet_governorate'] ?? '') == (unmatchedRow['sheet_governorate'] ?? '') &&
+            (r['sheet_phone'] ?? '') == (unmatchedRow['sheet_phone'] ?? '') &&
+            (r['sheet_amount'] ?? '') == (unmatchedRow['sheet_amount'] ?? '')));
+  }
+
+  Future<void> _manualClassifyUnmatchedRow(Map<String, String> row) async {
+    final models = _stockModels.keys.toList();
+    var selectedModel = models.first;
+    var selectedColor = _stockModels[selectedModel]!.first;
+    final countController = TextEditingController(text: '1');
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) => AlertDialog(
+            backgroundColor: _dialogBg(context),
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: _dialogBorder(context)),
+            ),
+            title: const Text("تحديد يدوي بدون داتا", textAlign: TextAlign.right),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text("الاسم: ${row['sheet_name'] ?? '-'}", textAlign: TextAlign.right),
+                  Text("المحافظة: ${row['sheet_governorate'] ?? '-'}", textAlign: TextAlign.right),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedModel,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'الموديل'),
+                    items: models
+                        .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setModalState(() {
+                        selectedModel = v;
+                        selectedColor = _stockModels[selectedModel]!.first;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: selectedColor,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'اللون'),
+                    items: _stockModels[selectedModel]!
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setModalState(() => selectedColor = v);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: countController,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.right,
+                    decoration: const InputDecoration(labelText: 'العدد'),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("إلغاء"),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final count = _parseIntSafe(countController.text);
+                  if (count <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("اكتب عدد صحيح أكبر من صفر")),
+                    );
+                    return;
+                  }
+                  Navigator.pop(ctx, {
+                    'model': selectedModel,
+                    'color': selectedColor,
+                    'count': count.toString(),
+                  });
+                },
+                child: const Text("تأكيد"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == null) return;
+    final model = result['model'] ?? '';
+    final color = result['color'] ?? '';
+    final count = _parseIntSafe(result['count'] ?? '0');
+    if (model.isEmpty || color.isEmpty || count <= 0) return;
+
+    final current15 = _parseIntSafe(count15Controller.text);
+    final current16 = _parseIntSafe(count16Controller.text);
+    final current17 = _parseIntSafe(count17Controller.text);
+
+    setState(() {
+      if (model.startsWith('15')) {
+        count15Controller.text = (current15 + count).toString();
+      } else if (model.startsWith('16')) {
+        count16Controller.text = (current16 + count).toString();
+      } else if (model.startsWith('17')) {
+        count17Controller.text = (current17 + count).toString();
+      }
+
+      _removeUnmatchedRowFromAnalysis(row);
+      _lastSheetMatchedRows.insert(0, {
+        'sheet_name': row['sheet_name'] ?? '',
+        'sheet_governorate': row['sheet_governorate'] ?? '',
+        'sheet_phone': row['sheet_phone'] ?? '',
+        'sheet_amount': row['sheet_amount'] ?? '',
+        'order_name': 'تحديد يدوي (بدون داتا)',
+        'order_governorate': row['sheet_governorate'] ?? '',
+        'order_model': '$model x$count',
+        'order_color': color,
+        'score': 'manual_no_db',
+      });
+    });
+
+    await _saveData();
+    await _addLogEntry(
+      "تحديد يدوي من تحليل الشيت",
+      "الشحنة: ${row['sheet_name'] ?? '-'} / ${row['sheet_governorate'] ?? '-'}\nالموديل: $model\nاللون: $color\nالعدد: $count",
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("تم تحديد الشحنة يدويًا")),
+    );
   }
 
   Future<String> _deleteOrderAction(String name, String? governorate) async {
@@ -2706,6 +2847,14 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                     onPressed: () => _manualMatchUnmatchedRow(r),
                     icon: const Icon(Icons.link_rounded, size: 18),
                     label: const Text("مطابقة يدوية"),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _manualClassifyUnmatchedRow(r),
+                    icon: const Icon(Icons.edit_note_rounded, size: 18),
+                    label: const Text("تحديد يدوي"),
                   ),
                 ),
                 if (((r['inferred_15'] ?? '0') != '0') || ((r['inferred_16'] ?? '0') != '0') || ((r['inferred_17'] ?? '0') != '0'))
