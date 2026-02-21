@@ -146,6 +146,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       stock15 = prefs.getInt('s15') ?? 0;
       stock16 = prefs.getInt('s16') ?? 0;
       stock17 = prefs.getInt('s17') ?? 0;
+      final legacyHome15 = prefs.getInt('hs15') ?? 0;
+      final legacyHome16 = prefs.getInt('hs16') ?? 0;
+      final legacyHome17 = prefs.getInt('hs17') ?? 0;
       inventoryLog = prefs.getStringList('inv_log') ?? [];
       myAccountBalance = prefs.getDouble('my_account_balance') ?? 0.0;
       
@@ -208,36 +211,67 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       colorStock = _createDefaultColorStock();
       homeColorStock = _createDefaultColorStock();
 
+      bool loadedMainColorStock = false;
       final savedColorStock = prefs.getString('color_stock_v1');
       if (savedColorStock != null && savedColorStock.isNotEmpty) {
         try {
           final decoded = jsonDecode(savedColorStock) as Map<String, dynamic>;
+          var touched = 0;
           decoded.forEach((model, colors) {
             if (!_stockModels.containsKey(model) || colors is! Map<String, dynamic>) return;
             final target = colorStock[model]!;
             for (final color in target.keys) {
               target[color] = (colors[color] as num?)?.toInt() ?? 0;
             }
+            touched++;
           });
+          loadedMainColorStock = touched > 0;
         } catch (_) {}
-      } else {
+      }
+      if (!loadedMainColorStock) {
+        final c15 = _stockModels['15 Pro Max']!.first;
+        final c16 = _stockModels['16 Pro Max']!.first;
+        final c17 = _stockModels['17 Pro Max']!.first;
+        colorStock['15 Pro Max']![c15] = stock15;
+        colorStock['16 Pro Max']![c16] = stock16;
+        colorStock['17 Pro Max']![c17] = stock17;
         colorStock['15 Pro Max']!['سلفر'] = stock15;
         colorStock['16 Pro Max']!['سلفر'] = stock16;
         colorStock['17 Pro Max']!['سلفر'] = stock17;
       }
 
+      bool loadedHomeColorStock = false;
       final savedHomeColorStock = prefs.getString('home_color_stock_v1');
       if (savedHomeColorStock != null && savedHomeColorStock.isNotEmpty) {
         try {
           final decoded = jsonDecode(savedHomeColorStock) as Map<String, dynamic>;
+          var touched = 0;
           decoded.forEach((model, colors) {
             if (!_stockModels.containsKey(model) || colors is! Map<String, dynamic>) return;
             final target = homeColorStock[model]!;
             for (final color in target.keys) {
               target[color] = (colors[color] as num?)?.toInt() ?? 0;
             }
+            touched++;
           });
+          loadedHomeColorStock = touched > 0;
         } catch (_) {}
+      }
+      if (!loadedHomeColorStock) {
+        final c15 = _stockModels['15 Pro Max']!.first;
+        final c16 = _stockModels['16 Pro Max']!.first;
+        final c17 = _stockModels['17 Pro Max']!.first;
+        homeColorStock['15 Pro Max']![c15] = legacyHome15;
+        homeColorStock['16 Pro Max']![c16] = legacyHome16;
+        homeColorStock['17 Pro Max']![c17] = legacyHome17;
+      }
+
+      for (final model in _stockModels.keys) {
+        final allowed = _stockModels[model]!;
+        final mainCurrent = colorStock[model] ?? <String, int>{};
+        final homeCurrent = homeColorStock[model] ?? <String, int>{};
+        colorStock[model] = {for (final c in allowed) c: mainCurrent[c] ?? 0};
+        homeColorStock[model] = {for (final c in allowed) c: homeCurrent[c] ?? 0};
       }
 
       _syncTotalsFromColorStock();
@@ -255,12 +289,18 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   Future<void> _saveData() async {
     final prefs = await SharedPreferences.getInstance();
+    final computedHome15 = homeColorStock['15 Pro Max']?.values.fold<int>(0, (a, b) => a + b) ?? homeStock15;
+    final computedHome16 = homeColorStock['16 Pro Max']?.values.fold<int>(0, (a, b) => a + b) ?? homeStock16;
+    final computedHome17 = homeColorStock['17 Pro Max']?.values.fold<int>(0, (a, b) => a + b) ?? homeStock17;
     await prefs.setDouble('p15', price15ProMax);
     await prefs.setDouble('p16', price16ProMax);
     await prefs.setDouble('p17', price17ProMax);
     await prefs.setInt('s15', stock15);
     await prefs.setInt('s16', stock16);
     await prefs.setInt('s17', stock17);
+    await prefs.setInt('hs15', computedHome15);
+    await prefs.setInt('hs16', computedHome16);
+    await prefs.setInt('hs17', computedHome17);
     await prefs.setStringList('inv_log', inventoryLog);
     await prefs.setDouble('my_account_balance', myAccountBalance);
     await prefs.setString('color_stock_v1', jsonEncode(colorStock));
