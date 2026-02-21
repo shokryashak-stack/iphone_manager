@@ -2018,17 +2018,20 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
       _removeUnmatchedRowFromAnalysis(unmatchedRow);
 
-      _lastSheetMatchedRows.insert(0, {
-        'sheet_name': unmatchedRow['sheet_name'] ?? '',
-        'sheet_governorate': unmatchedRow['sheet_governorate'] ?? '',
-        'sheet_phone': unmatchedRow['sheet_phone'] ?? '',
-        'sheet_amount': unmatchedRow['sheet_amount'] ?? '',
-        'order_name': order['name'] ?? '',
-        'order_governorate': order['governorate'] ?? '',
-        'order_model': order['model'] ?? '',
-        'order_color': order['color'] ?? '',
-        'score': 'manual_user_select',
-      });
+      _lastSheetMatchedRows = [
+        {
+          'sheet_name': unmatchedRow['sheet_name'] ?? '',
+          'sheet_governorate': unmatchedRow['sheet_governorate'] ?? '',
+          'sheet_phone': unmatchedRow['sheet_phone'] ?? '',
+          'sheet_amount': unmatchedRow['sheet_amount'] ?? '',
+          'order_name': order['name'] ?? '',
+          'order_governorate': order['governorate'] ?? '',
+          'order_model': order['model'] ?? '',
+          'order_color': order['color'] ?? '',
+          'score': 'manual_user_select',
+        },
+        ..._lastSheetMatchedRows,
+      ];
       _rebuildCustomersFromOrders();
     });
 
@@ -2042,12 +2045,18 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   }
 
   void _removeUnmatchedRowFromAnalysis(Map<String, String> unmatchedRow) {
-    _lastSheetUnmatchedRows.removeWhere((r) =>
-        identical(r, unmatchedRow) ||
-        ((r['sheet_name'] ?? '') == (unmatchedRow['sheet_name'] ?? '') &&
-            (r['sheet_governorate'] ?? '') == (unmatchedRow['sheet_governorate'] ?? '') &&
-            (r['sheet_phone'] ?? '') == (unmatchedRow['sheet_phone'] ?? '') &&
-            (r['sheet_amount'] ?? '') == (unmatchedRow['sheet_amount'] ?? '')));
+    _lastSheetUnmatchedRows = _lastSheetUnmatchedRows
+        .where((r) =>
+            !(identical(r, unmatchedRow) ||
+                ((r['sheet_name'] ?? '') ==
+                        (unmatchedRow['sheet_name'] ?? '') &&
+                    (r['sheet_governorate'] ?? '') ==
+                        (unmatchedRow['sheet_governorate'] ?? '') &&
+                    (r['sheet_phone'] ?? '') ==
+                        (unmatchedRow['sheet_phone'] ?? '') &&
+                    (r['sheet_amount'] ?? '') ==
+                        (unmatchedRow['sheet_amount'] ?? ''))))
+        .toList();
   }
 
   Future<void> _manualClassifyUnmatchedRow(Map<String, String> row) async {
@@ -2163,7 +2172,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       }
 
       _removeUnmatchedRowFromAnalysis(row);
-      _lastSheetMatchedRows.insert(0, {
+      _lastSheetMatchedRows = [
+        {
         'sheet_name': row['sheet_name'] ?? '',
         'sheet_governorate': row['sheet_governorate'] ?? '',
         'sheet_phone': row['sheet_phone'] ?? '',
@@ -2173,7 +2183,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         'order_model': '$model x$count',
         'order_color': color,
         'score': 'manual_no_db',
-      });
+      },
+        ..._lastSheetMatchedRows,
+      ];
     });
 
     await _saveData();
@@ -2809,6 +2821,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
       itemCount: rows.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (_, i) {
+        if (i < 0 || i >= rows.length) return const SizedBox.shrink();
         final r = rows[i];
         return Container(
           padding: const EdgeInsets.all(10),
