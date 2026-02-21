@@ -1253,9 +1253,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
     final phone = s(e['phone']).isNotEmpty ? s(e['phone']) : (phones.isNotEmpty ? phones.first : '');
 
-    final model = _normalizeModelNameAny(s(e['model']));
+    final model = _normalizeModelFromAi(s(e['model']));
     final colorsFromArray = colors.map((x) => _normalizeColorNameAny(x)).where((x) => x.isNotEmpty).toList();
-    final modelsFromArray = models.map(_normalizeModelNameAny).where((x) => x.isNotEmpty).toList();
+    final modelsFromArray = models.map(_normalizeModelFromAi).where((x) => x.isNotEmpty).toList();
     final colorRaw = s(e['color']);
     final color = model.isNotEmpty ? _normalizeColorForModel(model, colorRaw) : _normalizeColorNameAny(colorRaw);
 
