@@ -2098,6 +2098,21 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         final targetGov = _normalizeGovernorateForMatch(sheetGov);
         if (targetName.isEmpty) return -1;
 
+        bool governorateMatches(String a, String b) {
+          if (a.isEmpty || b.isEmpty) return true;
+          return a == b || a.contains(b) || b.contains(a);
+        }
+
+        bool hasTwoConsecutiveWords(String a, String b) {
+          final words = a.split(' ').where((w) => w.trim().isNotEmpty).toList();
+          if (words.length < 2) return false;
+          for (int i = 0; i < words.length - 1; i++) {
+            final pair = '${words[i]} ${words[i + 1]}';
+            if (b.contains(pair)) return true;
+          }
+          return false;
+        }
+
         final exactMatches = <int>[];
         for (int oi = 0; oi < orders.length; oi++) {
           if (usedOrderIndices.contains(oi)) continue;
@@ -2110,18 +2125,15 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         }
 
         if (exactMatches.isNotEmpty) {
-          if (targetGov.isEmpty) return exactMatches.first;
           for (final oi in exactMatches) {
             final orderGov = _normalizeGovernorateForMatch(orders[oi]['governorate'] ?? '');
-            if (orderGov == targetGov) return oi;
+            if (governorateMatches(targetGov, orderGov)) return oi;
           }
           return exactMatches.first;
         }
 
-        if (targetGov.isEmpty) return -1;
-
         int bestIdx = -1;
-        double bestScore = 0.0;
+        double bestScore = -1.0;
         for (int oi = 0; oi < orders.length; oi++) {
           if (usedOrderIndices.contains(oi)) continue;
           final order = orders[oi];
@@ -2129,18 +2141,23 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
 
           final orderGov = _normalizeGovernorateForMatch(order['governorate'] ?? '');
-          if (orderGov != targetGov) continue;
+          if (!governorateMatches(targetGov, orderGov)) continue;
 
           final orderName = _normalizePersonNameForMatch(order['name'] ?? '');
           if (orderName.isEmpty) continue;
 
           final partial = orderName.contains(targetName) || targetName.contains(orderName);
+          final twoWords = hasTwoConsecutiveWords(targetName, orderName);
           final score = _nameMatchScore(sheetName, order['name'] ?? '');
-          if (partial || score >= 0.55) {
-            if (score > bestScore) {
-              bestScore = score;
-              bestIdx = oi;
-            }
+          if (!(partial || twoWords || score >= 0.45)) continue;
+
+          double rank = score;
+          if (partial) rank += 0.35;
+          if (twoWords) rank += 0.25;
+          if (targetGov.isNotEmpty && orderGov == targetGov) rank += 0.15;
+          if (rank > bestScore) {
+            bestScore = rank;
+            bestIdx = oi;
           }
         }
         return bestIdx;
