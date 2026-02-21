@@ -7,6 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
 const GEMINI_MODELS = [
+  "gemini-2.5-flash",
   "gemini-2.0-flash",
   "gemini-1.5-flash-latest",
   "gemini-1.5-flash-8b",
@@ -63,30 +64,30 @@ function normalizeSpaces(s) {
 }
 
 function detectModel(text) {
-  if (/(?:^|\s)(17|ظ،ظ§)(?:\s|$)/.test(text)) return "17";
-  if (/(?:^|\s)(16|ظ،ظ¦)(?:\s|$)/.test(text)) return "16";
-  if (/(?:^|\s)(15|ظ،ظ¥)(?:\s|$)/.test(text)) return "15";
+  if (/(?:^|\s)(17|ط¸طŒط¸آ§)(?:\s|$)/.test(text)) return "17";
+  if (/(?:^|\s)(16|ط¸طŒط¸آ¦)(?:\s|$)/.test(text)) return "16";
+  if (/(?:^|\s)(15|ط¸طŒط¸آ¥)(?:\s|$)/.test(text)) return "15";
   return null;
 }
 
 function detectColor(text) {
   const colors = [
-    "ط³ظ„ظپط±",
-    "ظپط¶ظٹ",
-    "ط§ط³ظˆط¯",
-    "ط£ط³ظˆط¯",
-    "ط§ط²ط±ظ‚",
-    "ط£ط²ط±ظ‚",
-    "ط¯ظ‡ط¨ظٹ",
-    "ط°ظ‡ط¨ظٹ",
-    "ط¨ط±طھظ‚ط§ظ„ظٹ",
-    "طھظٹطھط§ظ†ظٹظˆظ…",
-    "ظƒط­ظ„ظٹ",
-    "ط§ط¨ظٹط¶",
-    "ط£ط¨ظٹط¶",
+    "ط·آ³ط¸â€‍ط¸ظ¾ط·آ±",
+    "ط¸ظ¾ط·آ¶ط¸ظ¹",
+    "ط·آ§ط·آ³ط¸ث†ط·آ¯",
+    "ط·آ£ط·آ³ط¸ث†ط·آ¯",
+    "ط·آ§ط·آ²ط·آ±ط¸â€ڑ",
+    "ط·آ£ط·آ²ط·آ±ط¸â€ڑ",
+    "ط·آ¯ط¸â€،ط·آ¨ط¸ظ¹",
+    "ط·آ°ط¸â€،ط·آ¨ط¸ظ¹",
+    "ط·آ¨ط·آ±ط·ع¾ط¸â€ڑط·آ§ط¸â€‍ط¸ظ¹",
+    "ط·ع¾ط¸ظ¹ط·ع¾ط·آ§ط¸â€ ط¸ظ¹ط¸ث†ط¸â€¦",
+    "ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹",
+    "ط·آ§ط·آ¨ط¸ظ¹ط·آ¶",
+    "ط·آ£ط·آ¨ط¸ظ¹ط·آ¶",
   ];
   const found = colors.find((c) => text.includes(c));
-  return found ? found.replace("ط£", "ط§") : null;
+  return found ? found.replace("ط·آ£", "ط·آ§") : null;
 }
 
 function detectCount(text) {
@@ -98,49 +99,49 @@ function detectCount(text) {
 
 function parseRuleBased(textRaw) {
   const text = normalizeSpaces(textRaw);
-  if (!text) return { action: "unknown", message: "ط§ظƒطھط¨ ط£ظ…ط± ط£ظˆظ„ظ‹ط§" };
+  if (!text) return { action: "unknown", message: "ط·آ§ط¸ئ’ط·ع¾ط·آ¨ ط·آ£ط¸â€¦ط·آ± ط·آ£ط¸ث†ط¸â€‍ط¸â€¹ط·آ§" };
 
   const lower = text.toLowerCase();
-  if (text.includes("ط§ظ„ظ…ط®ط²ظ†") || text.includes("ط§ظ„ط¬ط±ط¯") || lower.includes("check stock")) {
+  if (text.includes("ط·آ§ط¸â€‍ط¸â€¦ط·آ®ط·آ²ط¸â€ ") || text.includes("ط·آ§ط¸â€‍ط·آ¬ط·آ±ط·آ¯") || lower.includes("check stock")) {
     return { action: "check_stock" };
   }
 
-  if (text.includes("ط§ظ…ط³ط­") || text.includes("ط§ط­ط°ظپ") || text.includes("ط­ط°ظپ") || text.includes("ط´ظٹظ„")) {
+  if (text.includes("ط·آ§ط¸â€¦ط·آ³ط·آ­") || text.includes("ط·آ§ط·آ­ط·آ°ط¸ظ¾") || text.includes("ط·آ­ط·آ°ط¸ظ¾") || text.includes("ط·آ´ط¸ظ¹ط¸â€‍")) {
     const name = normalizeSpaces(
       text
-        .replace(/.*(ط§ظˆط±ط¯ط±|ط£ظˆط±ط¯ط±|ط·ظ„ط¨|ط¹ظ…ظٹظ„)/, "")
-        .replace(/.*(ط§ظ…ط³ط­|ط§ط­ط°ظپ|ط­ط°ظپ|ط´ظٹظ„)/, "")
+        .replace(/.*(ط·آ§ط¸ث†ط·آ±ط·آ¯ط·آ±|ط·آ£ط¸ث†ط·آ±ط·آ¯ط·آ±|ط·آ·ط¸â€‍ط·آ¨|ط·آ¹ط¸â€¦ط¸ظ¹ط¸â€‍)/, "")
+        .replace(/.*(ط·آ§ط¸â€¦ط·آ³ط·آ­|ط·آ§ط·آ­ط·آ°ط¸ظ¾|ط·آ­ط·آ°ط¸ظ¾|ط·آ´ط¸ظ¹ط¸â€‍)/, "")
     );
     return { action: "delete_order", name };
   }
 
-  if (text.includes("ط§ظ„ط؛ظٹ") || text.includes("ط¥ظ„ط؛ظٹ") || lower.includes("cancel")) {
+  if (text.includes("ط·آ§ط¸â€‍ط·ط›ط¸ظ¹") || text.includes("ط·آ¥ط¸â€‍ط·ط›ط¸ظ¹") || lower.includes("cancel")) {
     const name = normalizeSpaces(
       text
-        .replace(/.*(ط§ظˆط±ط¯ط±|ط£ظˆط±ط¯ط±|ط·ظ„ط¨|ط¹ظ…ظٹظ„)/, "")
-        .replace(/.*(ط§ظ„ط؛ظٹ|ط¥ظ„ط؛ظٹ|cancel)/i, "")
+        .replace(/.*(ط·آ§ط¸ث†ط·آ±ط·آ¯ط·آ±|ط·آ£ط¸ث†ط·آ±ط·آ¯ط·آ±|ط·آ·ط¸â€‍ط·آ¨|ط·آ¹ط¸â€¦ط¸ظ¹ط¸â€‍)/, "")
+        .replace(/.*(ط·آ§ط¸â€‍ط·ط›ط¸ظ¹|ط·آ¥ط¸â€‍ط·ط›ط¸ظ¹|cancel)/i, "")
     );
     return { action: "cancel_order", name };
   }
 
   if (
-    text.includes("ط²ظˆط¯") ||
-    text.includes("ط¶ظٹظپ") ||
-    text.includes("ط§ط¶ظپ") ||
-    text.includes("ط£ط¶ظپ") ||
+    text.includes("ط·آ²ط¸ث†ط·آ¯") ||
+    text.includes("ط·آ¶ط¸ظ¹ط¸ظ¾") ||
+    text.includes("ط·آ§ط·آ¶ط¸ظ¾") ||
+    text.includes("ط·آ£ط·آ¶ط¸ظ¾") ||
     lower.includes("add stock")
   ) {
     const model = detectModel(text);
     const color = detectColor(text);
     if (!model || !color) {
-      return { action: "unknown", message: "ط­ط¯ط¯ ط§ظ„ظ…ظˆط¯ظٹظ„ ظˆط§ظ„ظ„ظˆظ†. ظ…ط«ط§ظ„: ط²ظˆط¯ 2 ط§ظٹظپظˆظ† 16 ط³ظ„ظپط±" };
+      return { action: "unknown", message: "ط·آ­ط·آ¯ط·آ¯ ط·آ§ط¸â€‍ط¸â€¦ط¸ث†ط·آ¯ط¸ظ¹ط¸â€‍ ط¸ث†ط·آ§ط¸â€‍ط¸â€‍ط¸ث†ط¸â€ . ط¸â€¦ط·آ«ط·آ§ط¸â€‍: ط·آ²ط¸ث†ط·آ¯ 2 ط·آ§ط¸ظ¹ط¸ظ¾ط¸ث†ط¸â€  16 ط·آ³ط¸â€‍ط¸ظ¾ط·آ±" };
     }
     return { action: "add_stock", model, color, count: detectCount(text) };
   }
 
   return {
     action: "unknown",
-    message: "ط§ظ„ط£ظ…ط± ط؛ظٹط± ظˆط§ط¶ط­. ظ…ط«ط§ظ„: ط§ظ…ط³ط­ ط£ظˆط±ط¯ط± ظ…ط­ظ…ط¯ ط£ظˆ ط²ظˆط¯ 2 ط§ظٹظپظˆظ† 16 ط³ظ„ظپط±",
+    message: "ط·آ§ط¸â€‍ط·آ£ط¸â€¦ط·آ± ط·ط›ط¸ظ¹ط·آ± ط¸ث†ط·آ§ط·آ¶ط·آ­. ط¸â€¦ط·آ«ط·آ§ط¸â€‍: ط·آ§ط¸â€¦ط·آ³ط·آ­ ط·آ£ط¸ث†ط·آ±ط·آ¯ط·آ± ط¸â€¦ط·آ­ط¸â€¦ط·آ¯ ط·آ£ط¸ث† ط·آ²ط¸ث†ط·آ¯ 2 ط·آ§ط¸ظ¹ط¸ظ¾ط¸ث†ط¸â€  16 ط·آ³ط¸â€‍ط¸ظ¾ط·آ±",
   };
 }
 
@@ -197,7 +198,7 @@ async function generateWithFallbackModels(promptText) {
 
 function normalizeAction(payload) {
   const action = payload?.action;
-  if (!action) return { action: "unknown", message: "ط§ظ„ط§ظ…ط± ط؛ظٹط± ظˆط§ط¶ط­" };
+  if (!action) return { action: "unknown", message: "ط·آ§ط¸â€‍ط·آ§ط¸â€¦ط·آ± ط·ط›ط¸ظ¹ط·آ± ط¸ث†ط·آ§ط·آ¶ط·آ­" };
 
   if (action === "delete_order" || action === "cancel_order") {
     return {
@@ -222,7 +223,7 @@ function normalizeAction(payload) {
     return { action: "check_stock" };
   }
 
-  return { action: "unknown", message: String(payload.message || "ط§ظ„ط§ظ…ط± ط؛ظٹط± ظˆط§ط¶ط­").trim() };
+  return { action: "unknown", message: String(payload.message || "ط·آ§ط¸â€‍ط·آ§ط¸â€¦ط·آ± ط·ط›ط¸ظ¹ط·آ± ط¸ث†ط·آ§ط·آ¶ط·آ­").trim() };
 }
 
 function tryParseJson(text) {
@@ -256,18 +257,18 @@ function stripBidi(s) {
 
 function normalizeArabicDigits(s) {
   const map = {
-    "ظ ": "0",
-    "ظ،": "1",
-    "ظ¢": "2",
-    "ظ£": "3",
-    "ظ¤": "4",
-    "ظ¥": "5",
-    "ظ¦": "6",
-    "ظ§": "7",
-    "ظ¨": "8",
-    "ظ©": "9",
+    "ط¸آ ": "0",
+    "ط¸طŒ": "1",
+    "ط¸آ¢": "2",
+    "ط¸آ£": "3",
+    "ط¸آ¤": "4",
+    "ط¸آ¥": "5",
+    "ط¸آ¦": "6",
+    "ط¸آ§": "7",
+    "ط¸آ¨": "8",
+    "ط¸آ©": "9",
   };
-  return String(s || "").replace(/[ظ -ظ©]/g, (d) => map[d] || d);
+  return String(s || "").replace(/[ط¸آ -ط¸آ©]/g, (d) => map[d] || d);
 }
 
 function normalizePhone(phone) {
@@ -296,7 +297,7 @@ function normalizeModelNameAny(modelRaw) {
 function extractNormalizedModels(textRaw, count) {
   const text = normalizeSpaces(normalizeNewlines(stripBidi(normalizeArabicDigits(stripDiacritics(String(textRaw || ""))))));
   const digits = [];
-  const re = /(?:ط§ظٹظپظˆظ†|iphone)?\s*(15|16|17)\s*(?:pro|max|ط¨ط±ظˆ|ظ…ط§ظƒط³)?/gi;
+  const re = /(?:ط·آ§ط¸ظ¹ط¸ظ¾ط¸ث†ط¸â€ |iphone)?\s*(15|16|17)\s*(?:pro|max|ط·آ¨ط·آ±ط¸ث†|ط¸â€¦ط·آ§ط¸ئ’ط·آ³)?/gi;
   let m;
   while ((m = re.exec(text)) !== null) {
     const d = m[1];
@@ -313,20 +314,20 @@ function extractNormalizedModels(textRaw, count) {
 function normalizeColorNameAny(colorRaw) {
   const s = normalizeSpaces(stripDiacritics(String(colorRaw || ""))).toLowerCase();
   if (!s) return "";
-  if (s.includes("ط³ظ„ظپط±") || s.includes("ط³ظٹظ„ظپط±") || s.includes("ظپط¶ظٹ") || s.includes("ظپط¶ظ‡") || s.includes("silver") || s.includes("ط§ط¨ظٹط¶") || s.includes("ط£ط¨ظٹط¶") || s.includes("white")) return "ط³ظ„ظپط±";
-  if (s.includes("ط§ط³ظˆط¯") || s.includes("ط£ط³ظˆط¯") || s.includes("ط¨ظ„ط§ظƒ") || s.includes("black")) return "ط§ط³ظˆط¯";
-  if (s.includes("ط§ط²ط±ظ‚") || s.includes("ط£ط²ط±ظ‚") || s.includes("blue")) return "ط§ط²ط±ظ‚";
-  if (s.includes("ط¯ظ‡ط¨ظٹ") || s.includes("ط°ظ‡ط¨ظٹ") || s.includes("ط¬ظˆظ„ط¯") || s.includes("gold")) return "ط¯ظ‡ط¨ظٹ";
-  if (s.includes("ط¨ط±طھظ‚ط§ظ„ظٹ") || s.includes("ط§ظˆط±ظ†ط¬") || s.includes("ط§ظˆط±ط§ظ†ط¬") || s.includes("ط£ظˆط±ظ†ط¬") || s.includes("orange")) return "ط¨ط±طھظ‚ط§ظ„ظٹ";
-  if (s.includes("ظƒط­ظ„ظٹ") || s.includes("navy")) return "ظƒط­ظ„ظٹ";
-  if (s.includes("طھظٹطھط§ظ†ظٹظˆظ…") || s.includes("ط·ط¨ظٹط¹ظٹ") || s.includes("ظ†ط§طھط´ظˆط±ط§ظ„") || s.includes("natural")) return "طھظٹطھط§ظ†ظٹظˆظ…";
+  if (s.includes("ط·آ³ط¸â€‍ط¸ظ¾ط·آ±") || s.includes("ط·آ³ط¸ظ¹ط¸â€‍ط¸ظ¾ط·آ±") || s.includes("ط¸ظ¾ط·آ¶ط¸ظ¹") || s.includes("ط¸ظ¾ط·آ¶ط¸â€،") || s.includes("silver") || s.includes("ط·آ§ط·آ¨ط¸ظ¹ط·آ¶") || s.includes("ط·آ£ط·آ¨ط¸ظ¹ط·آ¶") || s.includes("white")) return "ط·آ³ط¸â€‍ط¸ظ¾ط·آ±";
+  if (s.includes("ط·آ§ط·آ³ط¸ث†ط·آ¯") || s.includes("ط·آ£ط·آ³ط¸ث†ط·آ¯") || s.includes("ط·آ¨ط¸â€‍ط·آ§ط¸ئ’") || s.includes("black")) return "ط·آ§ط·آ³ط¸ث†ط·آ¯";
+  if (s.includes("ط·آ§ط·آ²ط·آ±ط¸â€ڑ") || s.includes("ط·آ£ط·آ²ط·آ±ط¸â€ڑ") || s.includes("blue")) return "ط·آ§ط·آ²ط·آ±ط¸â€ڑ";
+  if (s.includes("ط·آ¯ط¸â€،ط·آ¨ط¸ظ¹") || s.includes("ط·آ°ط¸â€،ط·آ¨ط¸ظ¹") || s.includes("ط·آ¬ط¸ث†ط¸â€‍ط·آ¯") || s.includes("gold")) return "ط·آ¯ط¸â€،ط·آ¨ط¸ظ¹";
+  if (s.includes("ط·آ¨ط·آ±ط·ع¾ط¸â€ڑط·آ§ط¸â€‍ط¸ظ¹") || s.includes("ط·آ§ط¸ث†ط·آ±ط¸â€ ط·آ¬") || s.includes("ط·آ§ط¸ث†ط·آ±ط·آ§ط¸â€ ط·آ¬") || s.includes("ط·آ£ط¸ث†ط·آ±ط¸â€ ط·آ¬") || s.includes("orange")) return "ط·آ¨ط·آ±ط·ع¾ط¸â€ڑط·آ§ط¸â€‍ط¸ظ¹";
+  if (s.includes("ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹") || s.includes("navy")) return "ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹";
+  if (s.includes("ط·ع¾ط¸ظ¹ط·ع¾ط·آ§ط¸â€ ط¸ظ¹ط¸ث†ط¸â€¦") || s.includes("ط·آ·ط·آ¨ط¸ظ¹ط·آ¹ط¸ظ¹") || s.includes("ط¸â€ ط·آ§ط·ع¾ط·آ´ط¸ث†ط·آ±ط·آ§ط¸â€‍") || s.includes("natural")) return "ط·ع¾ط¸ظ¹ط·ع¾ط·آ§ط¸â€ ط¸ظ¹ط¸ث†ط¸â€¦";
   return "";
 }
 
 const STOCK_COLORS_BY_MODEL = {
-  "15 Pro Max": ["ط³ظ„ظپط±", "ط§ط³ظˆط¯", "ط§ط²ط±ظ‚"],
-  "16 Pro Max": ["ط³ظ„ظپط±", "ط¯ظ‡ط¨ظٹ", "ط§ط³ظˆط¯"],
-  "17 Pro Max": ["ط¨ط±طھظ‚ط§ظ„ظٹ", "ط³ظ„ظپط±", "ط§ط³ظˆط¯", "ط¯ظ‡ط¨ظٹ", "طھظٹطھط§ظ†ظٹظˆظ…", "ظƒط­ظ„ظٹ"],
+  "15 Pro Max": ["ط·آ³ط¸â€‍ط¸ظ¾ط·آ±", "ط·آ§ط·آ³ط¸ث†ط·آ¯", "ط·آ§ط·آ²ط·آ±ط¸â€ڑ"],
+  "16 Pro Max": ["ط·آ³ط¸â€‍ط¸ظ¾ط·آ±", "ط·آ¯ط¸â€،ط·آ¨ط¸ظ¹", "ط·آ§ط·آ³ط¸ث†ط·آ¯"],
+  "17 Pro Max": ["ط·آ¨ط·آ±ط·ع¾ط¸â€ڑط·آ§ط¸â€‍ط¸ظ¹", "ط·آ³ط¸â€‍ط¸ظ¾ط·آ±", "ط·آ§ط·آ³ط¸ث†ط·آ¯", "ط·آ¯ط¸â€،ط·آ¨ط¸ظ¹", "ط·ع¾ط¸ظ¹ط·ع¾ط·آ§ط¸â€ ط¸ظ¹ط¸ث†ط¸â€¦", "ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹"],
 };
 
 function normalizeColorForModel(modelKey, colorRaw) {
@@ -334,8 +335,8 @@ function normalizeColorForModel(modelKey, colorRaw) {
   if (!normalized) return "";
   const allowed = STOCK_COLORS_BY_MODEL[modelKey] || [];
   if (allowed.includes(normalized)) return normalized;
-  if (normalized === "ط§ط²ط±ظ‚" && allowed.includes("ظƒط­ظ„ظٹ")) return "ظƒط­ظ„ظٹ";
-  if (normalized === "ظƒط­ظ„ظٹ" && allowed.includes("ط§ط²ط±ظ‚")) return "ط§ط²ط±ظ‚";
+  if (normalized === "ط·آ§ط·آ²ط·آ±ط¸â€ڑ" && allowed.includes("ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹")) return "ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹";
+  if (normalized === "ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹" && allowed.includes("ط·آ§ط·آ²ط·آ±ط¸â€ڑ")) return "ط·آ§ط·آ²ط·آ±ط¸â€ڑ";
   return normalized;
 }
 
@@ -347,16 +348,16 @@ function extractNormalizedColors(textRaw) {
     if (!colors.includes(c)) colors.push(c);
   };
 
-  // Try to focus on "ظ„ظˆظ†" section first (often contains multiple colors)
-  const m = text.match(/(?:ظ„ظˆظ†|ط§ظ„ظ„ظˆظ†)\s*[:\/]?\s*([^\n]+)/i);
+  // Try to focus on "ط¸â€‍ط¸ث†ط¸â€ " section first (often contains multiple colors)
+  const m = text.match(/(?:ط¸â€‍ط¸ث†ط¸â€ |ط·آ§ط¸â€‍ط¸â€‍ط¸ث†ط¸â€ )\s*[:\/]?\s*([^\n]+)/i);
   if (m && m[1]) {
     const seg = normalizeSpaces(m[1]);
-    for (const part of seg.split(/[\u060C,|/]|(?:\s+ظˆ\s+)|(?:\s*&\s*)/).map((x) => x.trim()).filter(Boolean)) {
+    for (const part of seg.split(/[\u060C,|/]|(?:\s+ط¸ث†\s+)|(?:\s*&\s*)/).map((x) => x.trim()).filter(Boolean)) {
       push(normalizeColorNameAny(part));
     }
   }
 
-  // Also scan lines for standalone colors (e.g. "ظˆط³ظٹظ„ظپط±" on next line)
+  // Also scan lines for standalone colors (e.g. "ط¸ث†ط·آ³ط¸ظ¹ط¸â€‍ط¸ظ¾ط·آ±" on next line)
   const lines = text.split("\n").map((l) => normalizeSpaces(l)).filter(Boolean);
   for (const line of lines) {
     // If line is short and contains a color word, capture it.
@@ -369,7 +370,7 @@ function extractNormalizedColors(textRaw) {
 
 function extractCount(textRaw) {
   const text = normalizeSpaces(normalizeNewlines(stripBidi(normalizeArabicDigits(stripDiacritics(String(textRaw || ""))))));
-  const m = text.match(/(\d+)\s*ط§ظٹظپظˆظ†ط§طھ|(\d+)\s*ط§ظٹظپظˆظ†|(\d+)\s*iphone/i);
+  const m = text.match(/(\d+)\s*ط·آ§ط¸ظ¹ط¸ظ¾ط¸ث†ط¸â€ ط·آ§ط·ع¾|(\d+)\s*ط·آ§ط¸ظ¹ط¸ظ¾ط¸ث†ط¸â€ |(\d+)\s*iphone/i);
   const n = m ? Number.parseInt(m[1] || m[2] || m[3] || "1", 10) : 1;
   return Number.isInteger(n) && n > 0 ? n : 1;
 }
@@ -405,7 +406,7 @@ function splitWhatsAppBlocks(rawText) {
     .filter(Boolean);
   if (parts.length <= 1) {
     parts = text
-      .split(/(?=^\s*(?:ط§ط³ظ… ط§ظ„ط¹ظ…ظٹظ„|ط§ظ„ط§ط³ظ…)\s*\/?)/m)
+      .split(/(?=^\s*(?:ط·آ§ط·آ³ط¸â€¦ ط·آ§ط¸â€‍ط·آ¹ط¸â€¦ط¸ظ¹ط¸â€‍|ط·آ§ط¸â€‍ط·آ§ط·آ³ط¸â€¦)\s*\/?)/m)
       .map((p) => p.trim())
       .filter(Boolean);
   }
@@ -439,40 +440,40 @@ function parseWhatsAppBlockRuleBased(blockRaw) {
   const phone = phones[0] || "";
 
   let name = "";
-  const nameLine = lines.find((l) => /ط§ط³ظ… ط§ظ„ط¹ظ…ظٹظ„\s*\/|ط§ظ„ط§ط³ظ…\s*/.test(l));
+  const nameLine = lines.find((l) => /ط·آ§ط·آ³ط¸â€¦ ط·آ§ط¸â€‍ط·آ¹ط¸â€¦ط¸ظ¹ط¸â€‍\s*\/|ط·آ§ط¸â€‍ط·آ§ط·آ³ط¸â€¦\s*/.test(l));
   if (nameLine) {
-    name = normalizeSpaces(nameLine.replace(/.*(?:ط§ط³ظ… ط§ظ„ط¹ظ…ظٹظ„|ط§ظ„ط§ط³ظ…)\s*\/?/g, ""));
+    name = normalizeSpaces(nameLine.replace(/.*(?:ط·آ§ط·آ³ط¸â€¦ ط·آ§ط¸â€‍ط·آ¹ط¸â€¦ط¸ظ¹ط¸â€‍|ط·آ§ط¸â€‍ط·آ§ط·آ³ط¸â€¦)\s*\/?/g, ""));
   } else if (lines.length) {
     name = normalizeSpaces(lines[0].replace(/^\s*[:\\-]+/, ""));
   }
 
   let governorate = "";
-  const govLine = lines.find((l) => /ط§ظ„ظ…ط­ط§ظپط¸ظ‡\s*\/|ط§ظ„ظ…ط­ط§ظپط¸ط©\s*\/|ظ…ط­ط§ظپط¸ظ‡|ظ…ط­ط§ظپط¸ط©/.test(l));
+  const govLine = lines.find((l) => /ط·آ§ط¸â€‍ط¸â€¦ط·آ­ط·آ§ط¸ظ¾ط·آ¸ط¸â€،\s*\/|ط·آ§ط¸â€‍ط¸â€¦ط·آ­ط·آ§ط¸ظ¾ط·آ¸ط·آ©\s*\/|ط¸â€¦ط·آ­ط·آ§ط¸ظ¾ط·آ¸ط¸â€،|ط¸â€¦ط·آ­ط·آ§ط¸ظ¾ط·آ¸ط·آ©/.test(l));
   if (govLine) {
-    governorate = normalizeSpaces(govLine.replace(/.*(?:ط§ظ„ظ…ط­ط§ظپط¸ظ‡|ط§ظ„ظ…ط­ط§ظپط¸ط©|ظ…ط­ط§ظپط¸ظ‡|ظ…ط­ط§ظپط¸ط©)\s*\/?/g, ""));
+    governorate = normalizeSpaces(govLine.replace(/.*(?:ط·آ§ط¸â€‍ط¸â€¦ط·آ­ط·آ§ط¸ظ¾ط·آ¸ط¸â€،|ط·آ§ط¸â€‍ط¸â€¦ط·آ­ط·آ§ط¸ظ¾ط·آ¸ط·آ©|ط¸â€¦ط·آ­ط·آ§ط¸ظ¾ط·آ¸ط¸â€،|ط¸â€¦ط·آ­ط·آ§ط¸ظ¾ط·آ¸ط·آ©)\s*\/?/g, ""));
   } else {
-    const possibleGov = lines.find((l) => l.length <= 20 && !/ط§ظٹظپظˆظ†|iphone|pro|max|ظ„ظˆظ†|ط´ط­ظ†|ط®طµظ…|\d/.test(l));
+    const possibleGov = lines.find((l) => l.length <= 20 && !/ط·آ§ط¸ظ¹ط¸ظ¾ط¸ث†ط¸â€ |iphone|pro|max|ط¸â€‍ط¸ث†ط¸â€ |ط·آ´ط·آ­ط¸â€ |ط·آ®ط·آµط¸â€¦|\d/.test(l));
     if (possibleGov) governorate = possibleGov;
   }
 
   let address = "";
-  const addrIdx = lines.findIndex((l) => /ط§ظ„ط¹ظ†ظˆط§ظ† ط¨ط§ظ„طھظپطµظٹظ„\s*\/|ط§ظ„ط¹ظ†ظˆط§ظ†\s*/.test(l));
+  const addrIdx = lines.findIndex((l) => /ط·آ§ط¸â€‍ط·آ¹ط¸â€ ط¸ث†ط·آ§ط¸â€  ط·آ¨ط·آ§ط¸â€‍ط·ع¾ط¸ظ¾ط·آµط¸ظ¹ط¸â€‍\s*\/|ط·آ§ط¸â€‍ط·آ¹ط¸â€ ط¸ث†ط·آ§ط¸â€ \s*/.test(l));
   if (addrIdx !== -1) {
-    address = normalizeSpaces(lines[addrIdx].replace(/.*(?:ط§ظ„ط¹ظ†ظˆط§ظ† ط¨ط§ظ„طھظپطµظٹظ„|ط§ظ„ط¹ظ†ظˆط§ظ†)\s*\/?/g, ""));
+    address = normalizeSpaces(lines[addrIdx].replace(/.*(?:ط·آ§ط¸â€‍ط·آ¹ط¸â€ ط¸ث†ط·آ§ط¸â€  ط·آ¨ط·آ§ط¸â€‍ط·ع¾ط¸ظ¾ط·آµط¸ظ¹ط¸â€‍|ط·آ§ط¸â€‍ط·آ¹ط¸â€ ط¸ث†ط·آ§ط¸â€ )\s*\/?/g, ""));
     const tail = lines
       .slice(addrIdx + 1, addrIdx + 4)
       .filter((l) => !/^(?:0?1[0-2,5]\d{8})$/.test(l));
     if (tail.length) address = normalizeSpaces([address, ...tail].filter(Boolean).join(" "));
   } else {
-    const arrowLines = lines.filter((l) => l.includes("ًں‘ˆ") || l.includes("ط¬ظˆط§ط±") || l.includes("ط¨ط¬ظˆط§ط±"));
+    const arrowLines = lines.filter((l) => l.includes("ظ‹ع؛â€کث†") || l.includes("ط·آ¬ط¸ث†ط·آ§ط·آ±") || l.includes("ط·آ¨ط·آ¬ط¸ث†ط·آ§ط·آ±"));
     if (arrowLines.length) address = normalizeSpaces(arrowLines.join(" "));
   }
 
   function detectModelFromOrderText(tRaw) {
     const t = normalizeArabicDigits(String(tRaw || "")).toLowerCase();
-    if (/(?:ط§ظٹظپظˆظ†|iphone)\s*17/.test(t) || /17\s*(?:pro|max|ط¨ط±ظˆ|ظ…ط§ظƒط³)/.test(t)) return "17";
-    if (/(?:ط§ظٹظپظˆظ†|iphone)\s*16/.test(t) || /16\s*(?:pro|max|ط¨ط±ظˆ|ظ…ط§ظƒط³)/.test(t)) return "16";
-    if (/(?:ط§ظٹظپظˆظ†|iphone)\s*15/.test(t) || /15\s*(?:pro|max|ط¨ط±ظˆ|ظ…ط§ظƒط³)/.test(t)) return "15";
+    if (/(?:ط·آ§ط¸ظ¹ط¸ظ¾ط¸ث†ط¸â€ |iphone)\s*17/.test(t) || /17\s*(?:pro|max|ط·آ¨ط·آ±ط¸ث†|ط¸â€¦ط·آ§ط¸ئ’ط·آ³)/.test(t)) return "17";
+    if (/(?:ط·آ§ط¸ظ¹ط¸ظ¾ط¸ث†ط¸â€ |iphone)\s*16/.test(t) || /16\s*(?:pro|max|ط·آ¨ط·آ±ط¸ث†|ط¸â€¦ط·آ§ط¸ئ’ط·آ³)/.test(t)) return "16";
+    if (/(?:ط·آ§ط¸ظ¹ط¸ظ¾ط¸ث†ط¸â€ |iphone)\s*15/.test(t) || /15\s*(?:pro|max|ط·آ¨ط·آ±ط¸ث†|ط¸â€¦ط·آ§ط¸ئ’ط·آ³)/.test(t)) return "15";
     const d = detectModelDigitAny(t);
     return d || "";
   }
@@ -487,14 +488,14 @@ function parseWhatsAppBlockRuleBased(blockRaw) {
   const nums = (textNoPhones.match(/\d{1,5}/g) || [])
     .map((x) => Number.parseInt(x, 10))
     .filter((n) => Number.isFinite(n));
-  const discountMatch = textDigits.match(/ط®طµظ…\s*(\d{1,4})/);
+  const discountMatch = textDigits.match(/ط·آ®ط·آµط¸â€¦\s*(\d{1,4})/);
   const discount = discountMatch ? Number.parseInt(discountMatch[1], 10) : 0;
-  const shippingMatch = textDigits.match(/(\d{1,4})\s*(?:ط´ط­ظ†|shipping)/i);
+  const shippingMatch = textDigits.match(/(\d{1,4})\s*(?:ط·آ´ط·آ­ط¸â€ |shipping)/i);
   const shipping = shippingMatch ? Number.parseInt(shippingMatch[1], 10) : 0;
   const price = pickLargestPrice(nums);
   const codTotal = Math.max(0, price - (Number.isFinite(discount) ? discount : 0) + (Number.isFinite(shipping) ? shipping : 0));
 
-  const notesCandidates = lines.filter((l) => l.includes("ًںڑ«") || l.includes("ط§ظ„ط§ط³طھظ„ط§ظ…") || l.includes("ظ…ظ„ط­ظˆط¸ط©"));
+  const notesCandidates = lines.filter((l) => l.includes("ظ‹ع؛ع‘آ«") || l.includes("ط·آ§ط¸â€‍ط·آ§ط·آ³ط·ع¾ط¸â€‍ط·آ§ط¸â€¦") || l.includes("ط¸â€¦ط¸â€‍ط·آ­ط¸ث†ط·آ¸ط·آ©"));
   const notes = normalizeSpaces(notesCandidates.join(" "));
 
   return {
@@ -712,19 +713,19 @@ Preserve input order and include source_index (0-based) for every order.
 
 Normalization:
 - model in {"15 Pro Max","16 Pro Max","17 Pro Max"}
-- color in {"سلفر","اسود","ازرق","دهبي","برتقالي","كحلي","تيتانيوم"}
+- color in {"ط³ظ„ظپط±","ط§ط³ظˆط¯","ط§ط²ط±ظ‚","ط¯ظ‡ط¨ظٹ","ط¨ط±طھظ‚ط§ظ„ظٹ","ظƒط­ظ„ظٹ","طھظٹطھط§ظ†ظٹظˆظ…"}
 - count integer >= 1
 - phone Egyptian mobile 11 digits starts with 01
 - cod_total = price - discount + shipping
 - If multi-device: set models[] and colors[] (length <= count)
 
 Synonyms:
-- اورنج/اورانج => برتقالي
-- فضي/سيلفر/ابيض => سلفر
-- ازرق/كحلي same family (choose valid model color)
+- ط§ظˆط±ظ†ط¬/ط§ظˆط±ط§ظ†ط¬ => ط¨ط±طھظ‚ط§ظ„ظٹ
+- ظپط¶ظٹ/ط³ظٹظ„ظپط±/ط§ط¨ظٹط¶ => ط³ظ„ظپط±
+- ط§ط²ط±ظ‚/ظƒط­ظ„ظٹ same family (choose valid model color)
 
 Governorate:
-- Use governorate only (القاهرة/الجيزة/القليوبية...) not district.
+- Use governorate only (ط§ظ„ظ‚ط§ظ‡ط±ط©/ط§ظ„ط¬ظٹط²ط©/ط§ظ„ظ‚ظ„ظٹظˆط¨ظٹط©...) not district.
 
 Output schema:
 { "source_index","name","governorate","address","phone","phones","model","models","color","colors","count","price","shipping","discount","cod_total","notes" }
@@ -842,6 +843,11 @@ ${JSON.stringify(compact)}
 app.post("/ai/resolve_unmatched_row", async (req, res) => {
   try {
     const row = req.body?.row || {};
+    const sheetName = normalizeSpaces(req.body?.sheetName || row?.receiver_name || "");
+    const sheetGov = normalizeSpaces(req.body?.sheetGov || row?.destination || "");
+    const sheetAmountRaw = req.body?.sheetAmount ?? row?.cod_amount ?? "";
+    const sheetAmount = Number.parseFloat(String(sheetAmountRaw));
+
     const candidates = Array.isArray(req.body?.candidates) ? req.body.candidates : [];
     if (!candidates.length) {
       return res.json({ status: "manual" });
@@ -860,34 +866,42 @@ app.post("/ai/resolve_unmatched_row", async (req, res) => {
     }));
 
     const prompt = `
-You are resolving one unmatched delivery row using known customers history.
-Return ONLY JSON object. No markdown.
+أنت مساعد ذكي لإدارة مطابقة شحنات إكسيل مع قاعدة بيانات العملاء.
+بيانات الشحنة الحالية من الشيت:
 
-Output JSON schema:
-{"status":"matched|manual","model":"15 Pro Max|16 Pro Max|17 Pro Max","color":"سلفر|اسود|ازرق|دهبي|برتقالي|كحلي|تيتانيوم","confidence":0.0}
+الاسم: ${sheetName}
 
-Rules:
-- Prefer exact/near name + governorate match.
-- Ignore price as primary signal.
-- Use customer last_model/last_color and summaries to infer likely model/color.
-- If not confident, return {"status":"manual"}.
-- confidence must be 0..1 when status is matched.
+المحافظة: ${sheetGov}
 
-Row:
-${JSON.stringify({
-  receiver_name: normalizeSpaces(row?.receiver_name),
-  destination: normalizeSpaces(row?.destination),
-  cod_amount: String(row?.cod_amount ?? ""),
-})}
+مبلغ التحصيل (Cod Amount): ${Number.isFinite(sheetAmount) ? sheetAmount : String(sheetAmountRaw)}
 
-Candidates:
-${JSON.stringify(compact)}
+قائمة العملاء المحتملين من قاعدة البيانات:
+${JSON.stringify(compact, null, 2)}
+
+المطلوب:
+
+ابحث عن أقرب تطابق للاسم والمحافظة.
+
+استخدم "مبلغ التحصيل" كدليل إضافي لتوقع الموديل (مثلاً: 5500 يعني 15 Pro Max، 6000 يعني 16 Pro Max، 6500 يعني 17 Pro Max، أو مضاعفاتهم).
+
+إذا وجدت العميل المناسب وتأكدت منه، أرجع هذا الـ JSON فقط:
+{"status": "matched", "model": "اسم الموديل المستنتج", "color": "لون العميل المفضل من الداتا"}
+
+إذا لم تجد تطابق أو كان الاسم مختلفاً تماماً، أرجع:
+{"status": "manual"}
+
+أرجع JSON فقط بدون أي نصوص أخرى أو علامات Markdown.
     `.trim();
 
     const raw = await generateWithFallbackModels(prompt);
-    const parsed = tryParseJson(raw) || {};
+    const cleaned = String(raw || "")
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
 
+    const parsed = tryParseJson(cleaned) || tryParseJson(raw) || {};
     const statusRaw = String(parsed?.status || "").toLowerCase().trim();
+
     if (statusRaw !== "matched") {
       return res.json({ status: "manual" });
     }
@@ -899,7 +913,7 @@ ${JSON.stringify(compact)}
     const confidence = Number(parsed?.confidence);
     const safeConfidence = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
 
-    if (!model || !color || safeConfidence < 0.55) {
+    if (!model || !color) {
       return res.json({ status: "manual" });
     }
 
@@ -909,11 +923,13 @@ ${JSON.stringify(compact)}
       color,
       confidence: Number(safeConfidence.toFixed(2)),
     });
-  } catch (_) {
-    return res.json({ status: "manual" });
+  } catch (error) {
+    return res.status(500).json({
+      error: "resolve_unmatched_row_failed",
+      message: error?.message || "Server error",
+    });
   }
 });
-
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`AI proxy running on http://localhost:${PORT}`);
 });
