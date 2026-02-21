@@ -79,9 +79,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   final List<Map<String, String>> customers = [];
   
   static const Map<String, List<String>> _stockModels = {
-    '15 Pro Max': ['ط³ظ„ظپط±', 'ط§ط³ظˆط¯', 'ط§ط²ط±ظ‚'],
-    '16 Pro Max': ['ط³ظ„ظپط±', 'ط¯ظ‡ط¨ظٹ', 'ط§ط³ظˆط¯'],
-    '17 Pro Max': ['ط¨ط±طھظ‚ط§ظ„ظٹ', 'ط³ظ„ظپط±', 'ط§ط³ظˆط¯', 'ط¯ظ‡ط¨ظٹ', 'طھظٹطھط§ظ†ظٹظˆظ…', 'ظƒط­ظ„ظٹ'],
+    '15 Pro Max': ['سلفر', 'اسود', 'ازرق'],
+    '16 Pro Max': ['سلفر', 'دهبي', 'اسود'],
+    '17 Pro Max': ['برتقالي', 'سلفر', 'اسود', 'دهبي', 'تيتانيوم', 'كحلي'],
   };
 
   static const int _reviewAfterDays = 5;
@@ -221,9 +221,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           });
         } catch (_) {}
       } else {
-        colorStock['15 Pro Max']!['ط³ظ„ظپط±'] = stock15;
-        colorStock['16 Pro Max']!['ط³ظ„ظپط±'] = stock16;
-        colorStock['17 Pro Max']!['ط³ظ„ظپط±'] = stock17;
+        colorStock['15 Pro Max']!['سلفر'] = stock15;
+        colorStock['16 Pro Max']!['سلفر'] = stock16;
+        colorStock['17 Pro Max']!['سلفر'] = stock17;
       }
 
       final savedHomeColorStock = prefs.getString('home_color_stock_v1');
@@ -433,28 +433,21 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   String _normalizeArabicName(String input) {
     var s = input.trim().toLowerCase();
-    s = s
-        .replaceAll('أ', 'ا')
-        .replaceAll('إ', 'ا')
-        .replaceAll('آ', 'ا')
-        .replaceAll('ة', 'ه')
-        .replaceAll('ى', 'ي');
-    s = s.replaceAll(RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED]'), '');
-    s = s.replaceAll(RegExp(r'[^a-z\u0600-\u06FF\s]'), ' ');
-    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    s = s.replaceAll(RegExp(r'\s+'), ' ');
+    s = s.replaceAll('أ', 'ا').replaceAll('إ', 'ا').replaceAll('آ', 'ا').replaceAll('ة', 'ه').replaceAll('ى', 'ي');
     return s;
   }
 
   String _normalizeColorNameAny(String colorRaw) {
     final c = _normalizeArabicName(colorRaw);
     if (c.isEmpty) return '';
-    if (c.contains('ط³ظ„ظپط±') || c.contains('ط³ظٹظ„ظپط±') || c.contains('ظپط¶ظٹ') || c.contains('ظپط¶ظ‡') || c.contains('ط§ط¨ظٹط¶') || c.contains('ط£ط¨ظٹط¶') || c.contains('silver') || c.contains('white')) return 'ط³ظ„ظپط±';
-    if (c.contains('ط§ط³ظˆط¯') || c.contains('ط£ط³ظˆط¯') || c.contains('ط¨ظ„ط§ظƒ') || c.contains('black')) return 'ط§ط³ظˆط¯';
-    if (c.contains('ط§ط²ط±ظ‚') || c.contains('ط£ط²ط±ظ‚') || c.contains('blue')) return 'ط§ط²ط±ظ‚';
-    if (c.contains('ط¯ظ‡ط¨ظٹ') || c.contains('ط°ظ‡ط¨ظٹ') || c.contains('ط¬ظˆظ„ط¯') || c.contains('gold')) return 'ط¯ظ‡ط¨ظٹ';
-    if (c.contains('ط¨ط±طھظ‚ط§ظ„ظٹ') || c.contains('ط§ظˆط±ظ†ط¬') || c.contains('ط§ظˆط±ط§ظ†ط¬') || c.contains('ط£ظˆط±ظ†ط¬') || c.contains('orange')) return 'ط¨ط±طھظ‚ط§ظ„ظٹ';
-    if (c.contains('ظƒط­ظ„ظٹ') || c.contains('ظƒط­ظ„ظ‰') || c.contains('navy')) return 'ظƒط­ظ„ظٹ';
-    if (c.contains('طھظٹطھط§ظ†ظٹظˆظ…') || c.contains('ط·ط¨ظٹط¹ظٹ') || c.contains('ظ†ط§طھط´ظˆط±ط§ظ„') || c.contains('natural')) return 'طھظٹطھط§ظ†ظٹظˆظ…';
+    if (c.contains('سلفر') || c.contains('سيلفر') || c.contains('فضي') || c.contains('فضه') || c.contains('ابيض') || c.contains('أبيض') || c.contains('silver') || c.contains('white')) return 'سلفر';
+    if (c.contains('اسود') || c.contains('أسود') || c.contains('بلاك') || c.contains('black')) return 'اسود';
+    if (c.contains('ازرق') || c.contains('أزرق') || c.contains('blue')) return 'ازرق';
+    if (c.contains('دهبي') || c.contains('ذهبي') || c.contains('جولد') || c.contains('gold')) return 'دهبي';
+    if (c.contains('برتقالي') || c.contains('اورنج') || c.contains('اورانج') || c.contains('أورنج') || c.contains('orange')) return 'برتقالي';
+    if (c.contains('كحلي') || c.contains('كحلى') || c.contains('navy')) return 'كحلي';
+    if (c.contains('تيتانيوم') || c.contains('طبيعي') || c.contains('ناتشورال') || c.contains('natural')) return 'تيتانيوم';
     return colorRaw.trim();
   }
 
@@ -465,9 +458,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     final allowed = _stockModels[modelKey] ?? const <String>[];
     if (allowed.contains(normalized)) return normalized;
 
-    // Smart mapping: treat "ط§ط²ط±ظ‚" and "ظƒط­ظ„ظٹ" as the same family depending on model.
-    if (normalized == 'ط§ط²ط±ظ‚' && allowed.contains('ظƒط­ظ„ظٹ')) return 'ظƒط­ظ„ظٹ';
-    if (normalized == 'ظƒط­ظ„ظٹ' && allowed.contains('ط§ط²ط±ظ‚')) return 'ط§ط²ط±ظ‚';
+    // Smart mapping: treat "ازرق" and "كحلي" as the same family depending on model.
+    if (normalized == 'ازرق' && allowed.contains('كحلي')) return 'كحلي';
+    if (normalized == 'كحلي' && allowed.contains('ازرق')) return 'ازرق';
 
     return normalized;
   }
@@ -584,45 +577,45 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       if (iso.isNotEmpty) createdAt = DateTime.parse(iso).toLocal();
     } catch (_) {}
 
-    if (raw.contains('delivered') || raw.contains('طھظ… ط§ظ„طھط³ظ„ظٹظ…') || raw.contains('طھط³ظ„ظٹظ…')) {
-      return (code: 'delivered', label: 'طھظ… ط§ظ„طھط³ظ„ظٹظ…');
+    if (raw.contains('delivered') || raw.contains('تم التسليم') || raw.contains('تسليم')) {
+      return (code: 'delivered', label: 'تم التسليم');
     }
-    if (raw.contains('returned') || raw.contains('ظ…ط±طھط¬ط¹') || raw.contains('ط±ط¬ط¹')) {
-      return (code: 'returned', label: 'ظ…ط±طھط¬ط¹');
+    if (raw.contains('returned') || raw.contains('مرتجع') || raw.contains('رجع')) {
+      return (code: 'returned', label: 'مرتجع');
     }
-    if (raw.contains('canceled') || raw.contains('ظ…ظ„ط؛ظٹ') || raw.contains('ط§ظ„ط؛ط§ط،')) {
-      return (code: 'canceled', label: 'ظ…ظ„ط؛ظٹ');
+    if (raw.contains('canceled') || raw.contains('ملغي') || raw.contains('الغاء')) {
+      return (code: 'canceled', label: 'ملغي');
     }
-    if (raw.contains('review') || raw.contains('ط±ط§ط¬ط¹')) {
-      return (code: 'review', label: 'ط±ط§ط¬ط¹');
+    if (raw.contains('review') || raw.contains('راجع')) {
+      return (code: 'review', label: 'راجع');
     }
 
     // shipped / unknown => infer by age
     if (createdAt != null) {
       final days = now.difference(createdAt).inDays;
-      if (days >= _reviewAfterDays) return (code: 'review', label: 'ط±ط§ط¬ط¹');
+      if (days >= _reviewAfterDays) return (code: 'review', label: 'راجع');
     }
-    return (code: 'in_transit', label: 'ط¬ط§ط±ظٹ ط§ظ„طھظˆطµظٹظ„');
+    return (code: 'in_transit', label: 'جاري التوصيل');
   }
 
   ({String code, String label}) _statusFromCode(String code) {
     switch (code) {
       case 'delivered':
-        return (code: 'delivered', label: 'طھظ… ط§ظ„طھط³ظ„ظٹظ…');
+        return (code: 'delivered', label: 'تم التسليم');
       case 'review':
-        return (code: 'review', label: 'ط±ط§ط¬ط¹');
+        return (code: 'review', label: 'راجع');
       case 'returned':
-        return (code: 'returned', label: 'ظ…ط±طھط¬ط¹');
+        return (code: 'returned', label: 'مرتجع');
       case 'canceled':
-        return (code: 'canceled', label: 'ظ…ظ„ط؛ظٹ');
+        return (code: 'canceled', label: 'ملغي');
       case 'in_transit':
       default:
-        return (code: 'in_transit', label: 'ط¬ط§ط±ظٹ ط§ظ„طھظˆطµظٹظ„');
+        return (code: 'in_transit', label: 'جاري التوصيل');
     }
   }
 
   Future<void> _setCustomerStatusOverride(String customerKey, String? statusCode) async {
-    _pushUndo("طھط¹ط¯ظٹظ„ ط­ط§ظ„ط© ط¹ظ…ظٹظ„");
+    _pushUndo("تعديل حالة عميل");
     setState(() {
       final next = (statusCode ?? '').trim();
       if (next.isEmpty) {
@@ -636,7 +629,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   }
 
   Future<int> _normalizeOrderPhonesAndRebuildCustomers() async {
-    _pushUndo("طھظ†ط¸ظٹظپ ط£ط±ظ‚ط§ظ… ط§ظ„ط¹ظ…ظ„ط§ط،");
+    _pushUndo("تنظيف أرقام العملاء");
     int changed = 0;
     for (final o in orders) {
       final beforePhone = o['phone'] ?? '';
@@ -672,7 +665,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   }
 
   Future<int?> _editCustomerDialogAndApply(Map<String, String> customer) async {
-    _pushUndo("طھط¹ط¯ظٹظ„ ط¹ظ…ظٹظ„");
+    _pushUndo("تعديل عميل");
     final nameCtrl = TextEditingController(text: customer['name'] ?? '');
     final phoneCtrl = TextEditingController(text: customer['phone'] ?? '');
     final govCtrl = TextEditingController(text: customer['governorate'] ?? '');
@@ -684,25 +677,25 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         backgroundColor: _dialogBg(context),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-        title: const Text("طھط¹ط¯ظٹظ„ ط¨ظٹط§ظ†ط§طھ ط¹ظ…ظٹظ„", textAlign: TextAlign.right),
+        title: const Text("تعديل بيانات عميل", textAlign: TextAlign.right),
         content: SizedBox(
           width: 520,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: nameCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "ط§ظ„ط§ط³ظ…")),
+              TextField(controller: nameCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "الاسم")),
               const SizedBox(height: 8),
-              TextField(controller: phoneCtrl, keyboardType: TextInputType.phone, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "ط§ظ„ظ‡ط§طھظپ")),
+              TextField(controller: phoneCtrl, keyboardType: TextInputType.phone, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "الهاتف")),
               const SizedBox(height: 8),
-              TextField(controller: govCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "ط§ظ„ظ…ط­ط§ظپط¸ط©")),
+              TextField(controller: govCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "المحافظة")),
               const SizedBox(height: 8),
-              TextField(controller: addrCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "ط§ظ„ط¹ظ†ظˆط§ظ†")),
+              TextField(controller: addrCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "العنوان")),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("ط¥ظ„ط؛ط§ط،")),
-          ElevatedButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("ط­ظپط¸")),
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("إلغاء")),
+          ElevatedButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("حفظ")),
         ],
       ),
     );
@@ -749,21 +742,21 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   }
 
   Future<int?> _deleteCustomerWithConfirm(Map<String, String> customer) async {
-    _pushUndo("ظ…ط³ط­ ط¹ظ…ظٹظ„");
+    _pushUndo("مسح عميل");
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dctx) => AlertDialog(
         backgroundColor: _dialogBg(context),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-        title: const Text("ظ…ط³ط­ ط¹ظ…ظٹظ„", textAlign: TextAlign.right),
+        title: const Text("مسح عميل", textAlign: TextAlign.right),
         content: Text(
-          "ط¯ظ‡ ظ‡ظٹظ…ط³ط­ ظƒظ„ ط£ظˆط±ط¯ط±ط§طھ ط§ظ„ط¹ظ…ظٹظ„ ط¯ظ‡ ظ…ظ† ط§ظ„طھط·ط¨ظٹظ‚.\n\nط§ظ„ط¹ظ…ظٹظ„: ${customer['name'] ?? '-'}\nط§ظ„ظ‡ط§طھظپ: ${customer['phone'] ?? '-'}\n\nظ…طھط£ظƒط¯طں",
+          "ده هيمسح كل أوردرات العميل ده من التطبيق.\n\nالعميل: ${customer['name'] ?? '-'}\nالهاتف: ${customer['phone'] ?? '-'}\n\nمتأكد؟",
           textAlign: TextAlign.right,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("ط¥ظ„ط؛ط§ط،")),
-          TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("ظ…ط³ط­", style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("إلغاء")),
+          TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("مسح", style: TextStyle(color: Colors.red))),
         ],
       ),
     );
@@ -780,7 +773,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   Future<int?> _deleteSelectedCustomersByKeys(Set<String> keys) async {
     if (keys.isEmpty) return 0;
-    _pushUndo("ظ…ط³ط­ ط¹ظ…ظ„ط§ط،");
+    _pushUndo("مسح عملاء");
     int removedOrders = 0;
     final keysNow = keys.toList();
     for (final k in keysNow) {
@@ -936,20 +929,20 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         if (n > 0) parts.add('$label: $n');
       }
 
-      addPart('in_transit', 'ط¬ط§ط±ظٹ');
-      addPart('review', 'ط±ط§ط¬ط¹');
-      addPart('delivered', 'طھظ…');
-      addPart('returned', 'ظ…ط±طھط¬ط¹');
-      addPart('canceled', 'ظ…ظ„ط؛ظٹ');
+      addPart('in_transit', 'جاري');
+      addPart('review', 'راجع');
+      addPart('delivered', 'تم');
+      addPart('returned', 'مرتجع');
+      addPart('canceled', 'ملغي');
 
-      c['status_summary'] = parts.join('طŒ ');
+      c['status_summary'] = parts.join('، ');
       c['last_model'] = _normalizeModelFromAi(last['model'] ?? '');
       c['last_color'] = _normalizeColorNameAny(last['color'] ?? '');
 
       String buildSummary(Map<String, int> map) {
         if (map.isEmpty) return '';
         final entries = map.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-        return entries.map((e) => "${e.key}أ—${e.value}").join('طŒ ');
+        return entries.map((e) => "${e.key}×${e.value}").join('، ');
       }
 
       c['models_summary'] = buildSummary(modelsCount);
@@ -1014,7 +1007,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     return null;
   }
 
-  // --- طھط­ظ„ظٹظ„ ط£ظˆط±ط¯ط±ط§طھ ط§ظ„ظˆط§طھط³ط§ط¨ ط¹ط¨ط± ط§ظ„ط³ظٹط±ظپط± (Render) ---
+  // --- تحليل أوردرات الواتساب عبر السيرفر (Render) ---
   Future<List<Map<String, String>>?> _parseOrdersWithServerAi(String rawText) async {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/ai/parse_orders');
 
@@ -1230,8 +1223,8 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     };
   }
 
-  Future<String> _applyIncomingOrdersToHomeStock(List<Map<String, String>> incoming, {String logSource = 'ط§ط³طھظٹط±ط§ط¯ ظˆط§طھط³ط§ط¨ AI'}) async {
-    if (incoming.isEmpty) return 'ظ„ظ… ظٹطھظ… ط§ظ„ط¹ط«ظˆط± ط¹ظ„ظ‰ ط£ظˆط±ط¯ط±ط§طھ ظپظٹ ط§ظ„ظ†طµ.';
+  Future<String> _applyIncomingOrdersToHomeStock(List<Map<String, String>> incoming, {String logSource = 'استيراد واتساب AI'}) async {
+    if (incoming.isEmpty) return 'لم يتم العثور على أوردرات في النص.';
     _pushUndo(logSource);
 
     List<Map<String, String>> orderDevices(Map<String, String> o) {
@@ -1275,7 +1268,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
       final devices = orderDevices(o);
       if (devices.isEmpty) {
-        stockErrors.add("â‌Œ ط§ظ„ظ€ AI ظ„ظ… ظٹط³طھط·ط¹ ط§ط³طھظ†طھط§ط¬ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط£ط¬ظ‡ط²ط© ظ„ظ„ط¹ظ…ظٹظ„: ${o['name'] ?? '-'}");
+        stockErrors.add("❌ الـ AI لم يستطع استنتاج بيانات الأجهزة للعميل: ${o['name'] ?? '-'}");
         continue;
       }
 
@@ -1285,12 +1278,12 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         final m = (d['model'] ?? '').trim();
         final c = (d['color'] ?? '').trim();
         if (m.isEmpty || !_stockModels.containsKey(m)) {
-          stockErrors.add("â‌Œ ظ…ظˆط¯ظٹظ„ ط؛ظٹط± ظ…ط¹ط±ظˆظپ ظ„ظ„ط¹ظ…ظٹظ„: ${o['name'] ?? '-'}");
+          stockErrors.add("❌ موديل غير معروف للعميل: ${o['name'] ?? '-'}");
           valid = false;
           break;
         }
         if (c.isEmpty || !_stockModels[m]!.contains(c)) {
-          stockErrors.add("â‌Œ ظ„ظˆظ† ط؛ظٹط± طµط§ظ„ط­ ظ„ظ„ظ…ظˆط¯ظٹظ„ ($m) ظ„ظ„ط¹ظ…ظٹظ„: ${o['name'] ?? '-'}");
+          stockErrors.add("❌ لون غير صالح للموديل ($m) للعميل: ${o['name'] ?? '-'}");
           valid = false;
           break;
         }
@@ -1305,7 +1298,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           final need = entry.value;
           final available = tempHome[m]?[c] ?? 0;
           if (available < need) {
-            stockErrors.add("âڑ ï¸ڈ ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ ط؛ظٹط± ظƒط§ظپظٹ: $m ($c) ظ„ظ„ط¹ظ…ظٹظ„ ${o['name']} (ظ…ط·ظ„ظˆط¨ $need / ظ…طھط§ط­ $available)");
+            stockErrors.add("⚠️ مخزن البيت غير كافي: $m ($c) للعميل ${o['name']} (مطلوب $need / متاح $available)");
             valid = false;
             break;
           }
@@ -1326,7 +1319,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
       final existingCustomer = _findExistingCustomer(o);
       if (existingCustomer != null) {
-        repeatHints.add("ًں”„ ${o['name'] ?? ''} (ط¹ظ…ظٹظ„ ظ…طھظƒط±ط±)");
+        repeatHints.add("🔄 ${o['name'] ?? ''} (عميل متكرر)");
       }
     }
 
@@ -1334,14 +1327,14 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       return stockErrors.take(6).join('\n');
     }
 
-    String logDetails = "طھظ… ط³ط­ط¨ ${incoming.length} ط£ظˆط±ط¯ط± (ط¨ط§ظ„ط°ظƒط§ط، ط§ظ„ط§طµط·ظ†ط§ط¹ظٹ)طŒ ظˆط®طµظ… ط§ظ„ط¢طھظٹ:\n";
+    String logDetails = "تم سحب ${incoming.length} أوردر (بالذكاء الاصطناعي)، وخصم الآتي:\n";
     for (var model in deductedSummary.keys) {
       List<String> colorParts = [];
       deductedSummary[model]!.forEach((color, qty) {
         if (qty > 0) colorParts.add("$qty $color");
       });
       if (colorParts.isNotEmpty) {
-        logDetails += "- $model: (${colorParts.join('طŒ ')})\n";
+        logDetails += "- $model: (${colorParts.join('، ')})\n";
       }
     }
 
@@ -1356,10 +1349,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     await _addLogEntry(logSource, logDetails.trim());
 
     final repeats = repeatHints.isNotEmpty ? "\n\n${repeatHints.take(8).join('\n')}" : "";
-    return "âœ… طھظ… ط§ظ„ط§ط³طھظٹط±ط§ط¯ ط¨ظ†ط¬ط§ط­.\n\n${logDetails.trim()}$repeats";
+    return "✅ تم الاستيراد بنجاح.\n\n${logDetails.trim()}$repeats";
   }
 
-  // --- ظ†ط§ظپط°ط© ط§ظ„ط§ط³طھظٹط±ط§ط¯ ط§ظ„ط°ظƒظٹ ظ„ظ„ظˆط§طھط³ط§ط¨ ---
+  // --- نافذة الاستيراد الذكي للواتساب ---
   Future<void> _showWhatsAppBulkImportDialog() async {
     final textCtrl = TextEditingController();
     await showDialog(
@@ -1374,7 +1367,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         title: const Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Text('ط§ط³طھظٹط±ط§ط¯ ط°ظƒظٹ (AI)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text('استيراد ذكي (AI)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             SizedBox(width: 8),
             Icon(Icons.auto_awesome, color: Colors.amber),
           ],
@@ -1386,7 +1379,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
             maxLines: 14,
             textAlign: TextAlign.right,
             decoration: InputDecoration(
-              hintText: 'ط§ظ„طµظ‚ ط£ظˆط±ط¯ط±ط§طھ ط§ظ„ظˆط§طھط³ط§ط¨ ط¨ط£ظٹ ط´ظƒظ„ ظ‡ظ†ط§طŒ ظˆط§ظ„ظ€ AI ظ‡ظٹظپظ‡ظ…ظ‡ط§ ظˆظٹط®طµظ…ظ‡ط§ ظ…ظ† ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ...',
+              hintText: 'الصق أوردرات الواتساب بأي شكل هنا، والـ AI هيفهمها ويخصمها من مخزن البيت...',
               filled: true,
               fillColor: Theme.of(context).brightness == Brightness.dark
                   ? const Color(0xFF1A1A1A)
@@ -1401,13 +1394,13 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('ط¥ظ„ط؛ط§ط،'),
+            child: const Text('إلغاء'),
           ),
           ElevatedButton(
             onPressed: () async {
               if (textCtrl.text.trim().isEmpty) return;
 
-              // ط¥ط¸ظ‡ط§ط± Loading 
+              // إظهار Loading 
               showDialog(
                 context: ctx,
                 barrierDismissible: false,
@@ -1416,27 +1409,27 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                 ),
               );
 
-              // ط¥ط±ط³ط§ظ„ ظ„ظ€ Gemini
+              // إرسال لـ Gemini
               final incoming = await _parseOrdersWithServerAi(textCtrl.text);
               
               if (!mounted) return;
-              Navigator.pop(context); // ظ‚ظپظ„ ط§ظ„ظ€ Loading
+              Navigator.pop(context); // قفل الـ Loading
 
               if (incoming == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('â‌Œ ط­ط¯ط« ط®ط·ط£ ظپظٹ طھط­ظ„ظٹظ„ ط§ظ„ط°ظƒط§ط، ط§ظ„ط§طµط·ظ†ط§ط¹ظٹ! طھط£ظƒط¯ ظ…ظ† ط§ظ„ط¥ظ†طھط±ظ†طھ.'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('❌ حدث خطأ في تحليل الذكاء الاصطناعي! تأكد من الإنترنت.'), backgroundColor: Colors.red),
                 );
                 return;
               }
 
               if (incoming.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('ظ„ظ… ظٹطھظ… ط§ظ„ط¹ط«ظˆط± ط¹ظ„ظ‰ ط£ظˆط±ط¯ط±ط§طھ ظپظٹ ط§ظ„ظ†طµ.')),
+                  const SnackBar(content: Text('لم يتم العثور على أوردرات في النص.')),
                 );
                 return;
               }
 
-              // ط§ظ„ط®طµظ… ط§ظ„ظپط¹ظ„ظٹ ظ…ظ† ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ
+              // الخصم الفعلي من مخزن البيت
               final tempHome = _cloneColorStock(homeColorStock);
               final stockErrors = <String>[];
               final repeatHints = <String>[];
@@ -1449,13 +1442,13 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                 final safeQty = qty <= 0 ? 1 : qty;
                 
                 if (modelKey.isEmpty || colorKey.isEmpty || !_stockModels.containsKey(modelKey)) {
-                  stockErrors.add("â‌Œ ط§ظ„ظ€ AI ظ„ظ… ظٹط³طھط·ط¹ ط§ط³طھظ†طھط§ط¬ ط§ظ„ظ…ظˆط¯ظٹظ„/ط§ظ„ظ„ظˆظ† ظ„ظ„ط¹ظ…ظٹظ„: ${o['name'] ?? '-'}");
+                  stockErrors.add("❌ الـ AI لم يستطع استنتاج الموديل/اللون للعميل: ${o['name'] ?? '-'}");
                   continue;
                 }
                 
                 final available = tempHome[modelKey]?[colorKey] ?? 0;
                 if (available < safeQty) {
-                  stockErrors.add("âڑ ï¸ڈ ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ ط؛ظٹط± ظƒط§ظپظٹ: $modelKey ($colorKey) ظ„ظ„ط¹ظ…ظٹظ„ ${o['name']} (ظ…ط·ظ„ظˆط¨ $safeQty / ظ…طھط§ط­ $available)");
+                  stockErrors.add("⚠️ مخزن البيت غير كافي: $modelKey ($colorKey) للعميل ${o['name']} (مطلوب $safeQty / متاح $available)");
                   continue;
                 }
                 
@@ -1464,7 +1457,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                 
                 final existingCustomer = _findExistingCustomer(o);
                 if (existingCustomer != null) {
-                  repeatHints.add("ًں”„ ${o['name'] ?? ''} (ط¹ظ…ظٹظ„ ظ…طھظƒط±ط±)");
+                  repeatHints.add("🔄 ${o['name'] ?? ''} (عميل متكرر)");
                 }
               }
 
@@ -1480,14 +1473,14 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                 return; 
               }
 
-              String logDetails = "طھظ… ط³ط­ط¨ ${incoming.length} ط£ظˆط±ط¯ط± (ط¨ط§ظ„ط°ظƒط§ط، ط§ظ„ط§طµط·ظ†ط§ط¹ظٹ)طŒ ظˆط®طµظ… ط§ظ„ط¢طھظٹ:\n";
+              String logDetails = "تم سحب ${incoming.length} أوردر (بالذكاء الاصطناعي)، وخصم الآتي:\n";
               for (var model in deductedSummary.keys) {
                 List<String> colorParts = [];
                 deductedSummary[model]!.forEach((color, qty) {
                   if (qty > 0) colorParts.add("$qty $color");
                 });
                 if (colorParts.isNotEmpty) {
-                  logDetails += "- $model: (${colorParts.join('طŒ ')})\n";
+                  logDetails += "- $model: (${colorParts.join('، ')})\n";
                 }
               }
 
@@ -1499,10 +1492,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
               });
               
               await _saveData();
-              await _addLogEntry('ط§ط³طھظٹط±ط§ط¯ ط°ظƒظٹ AI', logDetails.trim());
+              await _addLogEntry('استيراد ذكي AI', logDetails.trim());
 
               if (!mounted) return;
-              Navigator.pop(ctx); // ظ‚ظپظ„ ط§ظ„ط´ط§ط´ط©
+              Navigator.pop(ctx); // قفل الشاشة
               
               showDialog(
                 context: context,
@@ -1511,7 +1504,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                   title: const Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                       Text('طھظ… ط§ظ„ط³ط­ط¨ ط¨ظ†ط¬ط§ط­', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                       Text('تم السحب بنجاح', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                        SizedBox(width: 8),
                        Icon(Icons.check_circle, color: Colors.green),
                     ],
@@ -1523,14 +1516,14 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(repeatHints.join(' | '))));
                         },
-                        child: const Text('ط¹ط±ط¶ ط§ظ„ظ…طھظƒط±ط±ظٹظ†', style: TextStyle(color: Colors.orange)),
+                        child: const Text('عرض المتكررين', style: TextStyle(color: Colors.orange)),
                       ),
-                    ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('طھظ…ط§ظ…')),
+                    ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('تمام')),
                   ],
                 ),
               );
             },
-            child: const Text('طھط­ظ„ظٹظ„ ظˆط®طµظ… ظ…ظ† ط§ظ„ط¨ظٹطھ', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('تحليل وخصم من البيت', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1620,15 +1613,15 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     const stop = <String>{
-      'ط§ط³ظ…',
-      'ط§ظ„ط§ط³ظ…',
-      'ط¹ظ…ظٹظ„',
-      'ط§ظ„ط¹ظ…ظٹظ„',
-      'ظ…ط³طھظ„ظ…',
-      'ط§ظ„ظ…ط³طھظ„ظ…',
-      'ط§ظ„ط§ظ†ط³ظ‡',
-      'ط§ظ„ط³ظٹط¯',
-      'ط§ظ„ط³ظٹط¯ظ‡',
+      'اسم',
+      'الاسم',
+      'عميل',
+      'العميل',
+      'مستلم',
+      'المستلم',
+      'الانسه',
+      'السيد',
+      'السيده',
     };
     final tokens = n
         .split(' ')
@@ -1661,22 +1654,22 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     if (normalized.isEmpty) return const <String>[];
 
     const stop = <String>{
-      'ط§ظ„ط³ظٹط¯',
-      'ط³ظٹط¯',
-      'ط¯ظƒطھظˆط±',
-      'ط§ظ„ط¯ظƒطھظˆط±',
-      'ط§ط³طھط§ط°',
-      'ط§ظ„ط£ط³طھط§ط°',
-      'ط§ظ„ط§ط³طھط§ط°',
-      'ط§ظ„ط§ط³طھط§ط°ظ‡',
-      'ط§ط³طھط§ط°ظ‡',
-      'ظ…ظ‡ظ†ط¯ط³',
-      'ط§ظ„ط§ط³ظ…',
-      'ط§ط³ظ…',
-      'ط§ظ„ط¹ظ…ظٹظ„',
-      'ط¹ظ…ظٹظ„',
-      'ط§ظ„ظ…ط³طھظ„ظ…',
-      'ظ…ط³طھظ„ظ…',
+      'السيد',
+      'سيد',
+      'دكتور',
+      'الدكتور',
+      'استاذ',
+      'الأستاذ',
+      'الاستاذ',
+      'الاستاذه',
+      'استاذه',
+      'مهندس',
+      'الاسم',
+      'اسم',
+      'العميل',
+      'عميل',
+      'المستلم',
+      'مستلم',
     };
 
     return normalized
@@ -1715,20 +1708,14 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   String _normalizeGovernorateForMatch(String input) {
     var s = _normalizeArabicName(input);
-    s = s
-        .replaceAll('محافظه', '')
-        .replaceAll('محافظة', '')
-        .replaceAll('مدينه', '')
-        .replaceAll('مدينة', '')
-        .trim();
+    s = s.replaceAll(RegExp(r'[^a-z0-9\u0600-\u06FF\s]'), ' ');
+    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    s = s.replaceAll('محافظه', '').replaceAll('محافظة', '').replaceAll('مدينه', '').replaceAll('مدينة', '').trim();
     s = s.replaceAll(' ', '');
-    if (s == 'بورسعيد') return 'بورسعيد';
-    if (s == 'كفرشيخ') return 'كفرالشيخ';
-    if (s == 'كفرالشيخ') return 'كفرالشيخ';
-    if (s == 'دقهليه') return 'الدقهلية';
-    if (s == 'الدقهليه') return 'الدقهلية';
-    if (s == 'اسماعيليه') return 'الاسماعيلية';
-    if (s == 'الاسماعيليه') return 'الاسماعيلية';
+    if (s == 'بورسعيد' || s == 'بورسعيد') return 'بورسعيد';
+    if (s == 'كفرالشيخ' || s == 'كفرشيخ') return 'كفرالشيخ';
+    if (s == 'الدقهليه' || s == 'دقهليه') return 'الدقهلية';
+    if (s == 'الاسماعيليه' || s == 'اسماعيليه') return 'الاسماعيلية';
     return s;
   }
 
@@ -1805,7 +1792,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   int _parseIntSafe(String v) => int.tryParse(_toWesternDigits(v).replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
   Future<String> _deleteOrderAction(String name, String? governorate) async {
-    _pushUndo("ط­ط°ظپ ط£ظˆط±ط¯ط±");
+    _pushUndo("حذف أوردر");
     final requested = _normalizeArabicName(name);
     final requestedGov = governorate == null ? '' : _normalizeArabicName(governorate);
     final before = orders.length;
@@ -1819,14 +1806,14 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     });
     final removed = before - orders.length;
     await _saveData();
-    await _addLogEntry("ط­ط°ظپ ط£ظˆط±ط¯ط±", "ط§ظ„ط§ط³ظ…: $name\nط§ظ„ط¹ط¯ط¯ ط§ظ„ظ…ط­ط°ظˆظپ: $removed");
+    await _addLogEntry("حذف أوردر", "الاسم: $name\nالعدد المحذوف: $removed");
     return removed > 0
-        ? "âœ… ط­ط§ط¶ط± ظٹط§ ظ‡ظ†ط¯ط³ط©طŒ ظ…ط³ط­طھ ط£ظˆط±ط¯ط± ط§ظ„ط¹ظ…ظٹظ„ ($name)"
-        : "âڑ ï¸ڈ ظ…ظ„ظ‚طھط´ ط£ظˆط±ط¯ط± ط¨ط§ظ„ط§ط³ظ… ط¯ظ‡: $name";
+        ? "✅ حاضر يا هندسة، مسحت أوردر العميل ($name)"
+        : "⚠️ ملقتش أوردر بالاسم ده: $name";
   }
 
   Future<String> _cancelOrderAction(String name, String? governorate) async {
-    _pushUndo("ط¥ظ„ط؛ط§ط، ط£ظˆط±ط¯ط±");
+    _pushUndo("إلغاء أوردر");
     final requested = _normalizeArabicName(name);
     final requestedGov = governorate == null ? '' : _normalizeArabicName(governorate);
     var canceled = 0;
@@ -1841,46 +1828,46 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       canceled++;
     }
     await _saveData();
-    await _addLogEntry("ط¥ظ„ط؛ط§ط، ط£ظˆط±ط¯ط±", "ط§ظ„ط§ط³ظ…: $name\nط§ظ„ط¹ط¯ط¯ ط§ظ„ظ…ظ„ط؛ظٹ: $canceled");
+    await _addLogEntry("إلغاء أوردر", "الاسم: $name\nالعدد الملغي: $canceled");
     return canceled > 0
-        ? "âœ… طھظ… ط¥ظ„ط؛ط§ط، ط£ظˆط±ط¯ط± ط§ظ„ط¹ظ…ظٹظ„ ($name)"
-        : "âڑ ï¸ڈ ظ…ظ„ظ‚طھط´ ط£ظˆط±ط¯ط± ظ„ط¥ظ„ط؛ط§ط،ظ‡ ط¨ط§ظ„ط§ط³ظ… ط¯ظ‡: $name";
+        ? "✅ تم إلغاء أوردر العميل ($name)"
+        : "⚠️ ملقتش أوردر لإلغاءه بالاسم ده: $name";
   }
 
   Future<String> _addStockAction(String model, String color, int count) async {
     final modelKey = _normalizeModelFromAi(model);
     if (modelKey.isEmpty || !_stockModels.containsKey(modelKey)) {
-      return "â‌Œ ظ…ظˆط¯ظٹظ„ ط؛ظٹط± ظ…ط¹ط±ظˆظپ: $model";
+      return "❌ موديل غير معروف: $model";
     }
-    if (count <= 0) return "â‌Œ ط§ظ„ط¹ط¯ط¯ ظ„ط§ط²ظ… ظٹظƒظˆظ† ط£ظƒط¨ط± ظ…ظ† طµظپط±";
+    if (count <= 0) return "❌ العدد لازم يكون أكبر من صفر";
 
     String resolvedColor = color.trim();
     final knownColors = _stockModels[modelKey]!;
     final exact = knownColors.where((c) => c == resolvedColor).toList();
     if (exact.isEmpty) {
       final fallback = knownColors.firstWhere((c) => c.toLowerCase() == resolvedColor.toLowerCase(), orElse: () => '');
-      if (fallback.isEmpty) return "â‌Œ ط§ظ„ظ„ظˆظ† ط؛ظٹط± ظ…ظˆط¬ظˆط¯ ظ„ظ„ظ…ظˆط¯ظٹظ„ $modelKey: $color";
+      if (fallback.isEmpty) return "❌ اللون غير موجود للموديل $modelKey: $color";
       resolvedColor = fallback;
     }
 
-    _pushUndo("طھظˆط±ظٹط¯ AI");
+    _pushUndo("توريد AI");
     setState(() {
       colorStock[modelKey]![resolvedColor] = (colorStock[modelKey]![resolvedColor] ?? 0) + count;
       _syncTotalsFromColorStock();
     });
-    await _addLogEntry("طھظˆط±ظٹط¯ AI", "ط§ظ„ظ…ظˆط¯ظٹظ„: $modelKey\nط§ظ„ظ„ظˆظ†: $resolvedColor\nط§ظ„ط¹ط¯ط¯: +$count");
-    return "ًں“¦ طھظ…ط§ظ…طŒ ط²ظˆط¯طھ ط§ظ„ظ…ط®ط²ظ† ط¨ظ€ $count ط£ط¬ظ‡ط²ط© $modelKey - $resolvedColor";
+    await _addLogEntry("توريد AI", "الموديل: $modelKey\nاللون: $resolvedColor\nالعدد: +$count");
+    return "📦 تمام، زودت المخزن بـ $count أجهزة $modelKey - $resolvedColor";
   }
 
   Future<String> _checkStockAction() async {
     _syncTotalsFromColorStock();
     _syncHomeTotalsFromColorStock();
-    return "ًں“ٹ ط§ظ„ظ…ط®ط²ظ† ط§ظ„ط±ط¦ظٹط³ظٹ:\n15 Pro Max: $stock15\n16 Pro Max: $stock16\n17 Pro Max: $stock17\n\nًںڈ  ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ:\n15 Pro Max: $homeStock15\n16 Pro Max: $homeStock16\n17 Pro Max: $homeStock17";
+    return "📊 المخزن الرئيسي:\n15 Pro Max: $stock15\n16 Pro Max: $stock16\n17 Pro Max: $stock17\n\n🏠 مخزن البيت:\n15 Pro Max: $homeStock15\n16 Pro Max: $homeStock16\n17 Pro Max: $homeStock17";
   }
 
   Future<String> _bulkImportOrdersAction(List<Map<String, dynamic>> ordersRaw) async {
     final incoming = ordersRaw.map(_dynamicOrderToStringMap).toList();
-    if (!mounted) return 'طھظ… ط§ظ„ط¥ظ„ط؛ط§ط،.';
+    if (!mounted) return 'تم الإلغاء.';
 
     final reviewed = await Navigator.of(context).push<List<Map<String, String>>>(
       MaterialPageRoute(
@@ -1892,7 +1879,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       ),
     );
 
-    if (reviewed == null) return 'طھظ… ط§ظ„ط¥ظ„ط؛ط§ط،.';
+    if (reviewed == null) return 'تم الإلغاء.';
 
     for (final o in reviewed) {
       final price = _parseIntSafe(o['price'] ?? '');
@@ -1901,7 +1888,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       final codTotal = price > 0 ? (price - discount + shipping) : 0;
       if (codTotal > 0) o['cod_total'] = codTotal.toString();
     }
-    return _applyIncomingOrdersToHomeStock(reviewed, logSource: 'ط§ط³طھظٹط±ط§ط¯ ظˆط§طھط³ط§ط¨ (ظ…ط±ط§ط¬ط¹ط©)');
+    return _applyIncomingOrdersToHomeStock(reviewed, logSource: 'استيراد واتساب (مراجعة)');
   }
 
   void _openAiAssistant({int initialTabIndex = 0}) {
@@ -1927,14 +1914,14 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         backgroundColor: _dialogBg(context),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-        title: const Text("ظ…ط³ط­ ط§ظ„ظ…ط®ط²ظˆظ†", textAlign: TextAlign.right),
-        content: const Text("ظ‡ظ„ ط£ظ†طھ ظ…طھط£ظƒط¯ ظ…ظ† ظ…ط³ط­ ظƒظ„ ظƒظ…ظٹط§طھ ط§ظ„ظ…ط®ط²ظˆظ†طں ط³ظٹطھظ… طھطµظپظٹط± ظ…ط®ط²ظˆظ† ط§ظ„ط£ط¬ظ‡ط²ط© ظپظ‚ط·.", textAlign: TextAlign.right),
+        title: const Text("مسح المخزون", textAlign: TextAlign.right),
+        content: const Text("هل أنت متأكد من مسح كل كميات المخزون؟ سيتم تصفير مخزون الأجهزة فقط.", textAlign: TextAlign.right),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ط¥ظ„ط؛ط§ط،")),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("إلغاء")),
           TextButton(
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
-              _pushUndo("ظ…ط³ط­ ظ…ط®ط²ظˆظ†");
+              _pushUndo("مسح مخزون");
               setState(() {
                 colorStock = _createDefaultColorStock();
                 _syncTotalsFromColorStock();
@@ -1942,13 +1929,13 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                 count16Controller.clear();
                 count17Controller.clear();
               });
-              await _addLogEntry("ظ…ط³ط­ ظ…ط®ط²ظˆظ†", "طھظ… طھطµظپظٹط± ظƒظ„ ظƒظ…ظٹط§طھ ط§ظ„ط£ط¬ظ‡ط²ط© ظ…ظ† ط§ظ„ظ‚ط§ط¦ظ…ط© ط§ظ„ط¬ط§ظ†ط¨ظٹط©");
+              await _addLogEntry("مسح مخزون", "تم تصفير كل كميات الأجهزة من القائمة الجانبية");
               await _saveData();
               if (!mounted || !ctx.mounted) return;
               Navigator.pop(ctx);
-              messenger.showSnackBar(const SnackBar(content: Text("طھظ… ظ…ط³ط­ ط§ظ„ظ…ط®ط²ظˆظ† ط¨ظ†ط¬ط§ط­")));
+              messenger.showSnackBar(const SnackBar(content: Text("تم مسح المخزون بنجاح")));
             },
-            child: const Text("ظ†ط¹ظ…طŒ ط§ظ…ط³ط­ ط§ظ„ظ…ط®ط²ظˆظ†", style: TextStyle(color: Colors.red)),
+            child: const Text("نعم، امسح المخزون", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -1986,7 +1973,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       String ext = (result.files.single.extension ?? '').toLowerCase();
       final filePath = result.files.single.path;
       if (filePath == null || filePath.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("طھط¹ط°ط± ظ‚ط±ط§ط،ط© ظ…ط³ط§ط± ط§ظ„ظ…ظ„ظپ")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تعذر قراءة مسار الملف")));
         return;
       }
 
@@ -2016,7 +2003,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         }
 
         if (selectedTable == null) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ظ„ظ… ظٹطھظ… ط§ظ„ط¹ط«ظˆط± ط¹ظ„ظ‰ ط´ظٹطھ طµط§ظ„ط­ ظ„ظ„طھط­ظ„ظٹظ„")));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("لم يتم العثور على شيت صالح للتحليل")));
           return;
         }
 
@@ -2065,28 +2052,28 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         return -1;
       }
 
-      int amountIndex = findHeaderIndex(['cod amount', 'amount cod', 'cod amt', 'طھط­طµظٹظ„']);
+      int amountIndex = findHeaderIndex(['cod amount', 'amount cod', 'cod amt', 'تحصيل']);
       if (amountIndex == -1) amountIndex = findHeaderByAll(['cod', 'amount']);
 
-      int feeIndex = findHeaderIndex(['cod service fee', 'service fee', 'cod fee', 'ط±ط³ظˆظ…']);
+      int feeIndex = findHeaderIndex(['cod service fee', 'service fee', 'cod fee', 'رسوم']);
       if (feeIndex == -1) feeIndex = findHeaderByAll(['cod', 'fee']);
 
-      int shippingIndex = findHeaderIndex(['total freight', 'shipping cost', 'shipping fee', 'shipping', 'freight', 'ط´ط­ظ†']);
+      int shippingIndex = findHeaderIndex(['total freight', 'shipping cost', 'shipping fee', 'shipping', 'freight', 'شحن']);
       int receiverNameIndex = findHeaderExactPriority(
-        ['receiver name', 'consignee name', 'receiver', 'consignee', 'ط§ط³ظ… ط§ظ„ظ…ط³طھظ„ظ…'],
-        ['receiver', 'consignee', 'ط§ط³ظ… ط§ظ„ظ…ط³طھظ„ظ…', 'receiver name'],
+        ['receiver name', 'consignee name', 'receiver', 'consignee', 'اسم المستلم'],
+        ['receiver', 'consignee', 'اسم المستلم', 'receiver name'],
       );
       int destinationIndex = findHeaderExactPriority(
-        ['destination', 'governorate', 'city', 'ط§ظ„ظ…ط­ط§ظپط¸ط©', 'ط§ظ„ظ…ط­ط§ظپط¸ظ‡'],
-        ['destination', 'governorate', 'city', 'ظ…ط­ط§ظپط¸ط©', 'ط§ظ„ظ…ط­ط§ظپط¸ظ‡'],
+        ['destination', 'governorate', 'city', 'المحافظة', 'المحافظه'],
+        ['destination', 'governorate', 'city', 'محافظة', 'المحافظه'],
       );
       int receiverPhoneIndex = findHeaderExactPriority(
-        ['receiver mobile', 'receiver phone', 'consignee mobile', 'consignee phone', 'mobile', 'phone', 'ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ', 'طھظ„ظٹظپظˆظ†'],
-        ['receiver', 'consignee', 'mobile', 'phone', 'ظ‡ط§طھظپ', 'طھظ„ظٹظپظˆظ†'],
+        ['receiver mobile', 'receiver phone', 'consignee mobile', 'consignee phone', 'mobile', 'phone', 'رقم الهاتف', 'تليفون'],
+        ['receiver', 'consignee', 'mobile', 'phone', 'هاتف', 'تليفون'],
       );
 
       if (feeIndex == -1) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ظ…ط´ ظ„ط§ظ‚ظٹ ط¹ظ…ظˆط¯ COD Service Fee")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("مش لاقي عمود COD Service Fee")));
         return;
       }
 
@@ -2107,45 +2094,53 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       final unmatchedRows = <Map<String, String>>[];
 
       int findBestOrderIndex(String sheetName, String sheetGov) {
-        final targetName = _normalizeArabicName(sheetName);
+        final targetName = _normalizePersonNameForMatch(sheetName);
         final targetGov = _normalizeGovernorateForMatch(sheetGov);
         if (targetName.isEmpty) return -1;
 
-        bool hasTwoConsecutiveWords(String sheet, String db) {
-          final words = sheet.split(' ').where((w) => w.trim().isNotEmpty).toList();
-          if (words.length < 2) return false;
-          for (int wi = 0; wi < words.length - 1; wi++) {
-            final pair = '${words[wi]} ${words[wi + 1]}';
-            if (db.contains(pair)) return true;
-          }
-          return false;
-        }
-
-        int bestIdx = -1;
-        double bestScore = -1;
+        final exactMatches = <int>[];
         for (int oi = 0; oi < orders.length; oi++) {
           if (usedOrderIndices.contains(oi)) continue;
           final order = orders[oi];
           final status = _normalizeArabicName(order['status'] ?? '');
           if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
 
-          final dbGov = _normalizeGovernorateForMatch(order['governorate'] ?? '');
-          final govMatches = targetGov.isEmpty || dbGov.isEmpty || targetGov.contains(dbGov) || dbGov.contains(targetGov);
-          if (!govMatches) continue;
+          final orderName = _normalizePersonNameForMatch(order['name'] ?? '');
+          if (orderName == targetName) exactMatches.add(oi);
+        }
 
-          final dbName = _normalizeArabicName(order['name'] ?? '');
-          if (dbName.isEmpty) continue;
+        if (exactMatches.isNotEmpty) {
+          if (targetGov.isEmpty) return exactMatches.first;
+          for (final oi in exactMatches) {
+            final orderGov = _normalizeGovernorateForMatch(orders[oi]['governorate'] ?? '');
+            if (orderGov == targetGov) return oi;
+          }
+          return exactMatches.first;
+        }
 
-          final exactOrContains = targetName == dbName || targetName.contains(dbName) || dbName.contains(targetName);
-          final twoWords = hasTwoConsecutiveWords(targetName, dbName);
-          if (!exactOrContains && !twoWords) continue;
+        if (targetGov.isEmpty) return -1;
 
-          final score = exactOrContains
-              ? (targetName == dbName ? 3.0 : 2.0)
-              : 1.0;
-          if (score > bestScore) {
-            bestScore = score;
-            bestIdx = oi;
+        int bestIdx = -1;
+        double bestScore = 0.0;
+        for (int oi = 0; oi < orders.length; oi++) {
+          if (usedOrderIndices.contains(oi)) continue;
+          final order = orders[oi];
+          final status = _normalizeArabicName(order['status'] ?? '');
+          if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
+
+          final orderGov = _normalizeGovernorateForMatch(order['governorate'] ?? '');
+          if (orderGov != targetGov) continue;
+
+          final orderName = _normalizePersonNameForMatch(order['name'] ?? '');
+          if (orderName.isEmpty) continue;
+
+          final partial = orderName.contains(targetName) || targetName.contains(orderName);
+          final score = _nameMatchScore(sheetName, order['name'] ?? '');
+          if (partial || score >= 0.55) {
+            if (score > bestScore) {
+              bestScore = score;
+              bestIdx = oi;
+            }
           }
         }
         return bestIdx;
@@ -2224,10 +2219,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         _lastSheetAnalysisAt = DateTime.now().toIso8601String();
       });
       await _saveData();
-      await _addLogEntry("ظ…ط·ط§ط¨ظ‚ط© طھط³ظ„ظٹظ… ط§ظ„ط´ظٹطھ", "ظ…ط·ط§ط¨ظ‚ط§طھ ط¨ط§ظ†طھط¸ط§ط± ط§ظ„طھط£ظƒظٹط¯: $matchedDelivered\nط­ط§ظ„ط§طھ ط؛ظٹط± ظ…ط¤ظƒط¯ط©: $unmatchedDelivered");
+      await _addLogEntry("مطابقة تسليم الشيت", "مطابقات بانتظار التأكيد: $matchedDelivered\nحالات غير مؤكدة: $unmatchedDelivered");
       _showResultDialog(count, totalDeductions, totalNet, auto15, auto16, auto17);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("? ط®ط·ط£: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("? خطأ: $e")));
     }
   }
 void _showResultDialog(int count, double ded, double net, int a15, int a16, int a17) {
@@ -2245,7 +2240,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
           children: [
             Icon(Icons.check_circle, color: Colors.green, size: 22),
             SizedBox(width: 8),
-            Expanded(child: Text("طھظ… طھط­ظ„ظٹظ„ ط§ظ„ط´ظٹطھ ط¨ظ†ط¬ط§ط­", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20))),
+            Expanded(child: Text("تم تحليل الشيت بنجاح", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20))),
           ],
         ),
         content: Directionality(
@@ -2259,16 +2254,16 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 decoration: BoxDecoration(color: isDark ? Colors.white10 : Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
                 child: Column(
                   children: [
-                    _analysisMetricRow("ط§ظ„ط£ظˆط±ط¯ط±ط§طھ ط§ظ„ظ…ط³طھظ„ظ…ط©", count.toString()),
+                    _analysisMetricRow("الأوردرات المستلمة", count.toString()),
                     const SizedBox(height: 8),
-                    _analysisMetricRow("ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط®طµظˆظ…ط§طھ", "${ded.toStringAsFixed(2)} ط¬.ظ…"),
+                    _analysisMetricRow("إجمالي الخصومات", "${ded.toStringAsFixed(2)} ج.م"),
                     const SizedBox(height: 8),
-                    _analysisMetricRow("ط§ظ„طµط§ظپظٹ ط§ظ„ظ…ط­ظˆظ„", "${net.toStringAsFixed(2)} ط¬.ظ…", highlight: true),
+                    _analysisMetricRow("الصافي المحول", "${net.toStringAsFixed(2)} ج.م", highlight: true),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
-              const Text("ط§ظ„ط£ط¬ظ‡ط²ط© ط§ظ„ظ…طھط¹ط±ظپ ط¹ظ„ظٹظ‡ط§", style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+              const Text("الأجهزة المتعرف عليها", style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -2293,7 +2288,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 child: OutlinedButton.icon(
                   onPressed: _showLastSheetAnalysisDetails,
                   icon: const Icon(Icons.list_alt_rounded, size: 18),
-                  label: const Text("طھظپط§طµظٹظ„ ط§ظ„طھط­ظ„ظٹظ„"),
+                  label: const Text("تفاصيل التحليل"),
                 ),
               ),
               const SizedBox(width: 8),
@@ -2301,7 +2296,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(minimumSize: const Size(0, 44), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  child: const Text("ط¥ط؛ظ„ط§ظ‚"),
+                  child: const Text("إغلاق"),
                 ),
               ),
             ],
@@ -2315,7 +2310,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
     final matched = _lastSheetMatchedRows;
     final unmatched = _lastSheetUnmatchedRows;
     if (matched.isEmpty && unmatched.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ظ„ط§ طھظˆط¬ط¯ طھظپط§طµظٹظ„ طھط­ظ„ظٹظ„ ط­ط§ظ„ظٹط§ظ‹")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("لا توجد تفاصيل تحليل حالياً")));
       return;
     }
 
@@ -2334,7 +2329,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text("طھظپط§طµظٹظ„ طھط­ظ„ظٹظ„ ط§ظ„ط´ظٹطھ", textAlign: TextAlign.right),
+                const Text("تفاصيل تحليل الشيت", textAlign: TextAlign.right),
                 if (_lastSheetAnalysisAt.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
@@ -2346,8 +2341,8 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 const SizedBox(height: 8),
                 TabBar(
                   tabs: [
-                    Tab(text: 'ط§طھط·ط§ط¨ظ‚ (${matched.length})'),
-                    Tab(text: 'ظ…ط§ ط§طھط·ط§ط¨ظ‚ط´ (${unmatched.length})'),
+                    Tab(text: 'اتطابق (${matched.length})'),
+                    Tab(text: 'ما اتطابقش (${unmatched.length})'),
                   ],
                 ),
               ],
@@ -2359,12 +2354,12 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 children: [
                   _buildSheetAnalysisList(
                     rows: matched,
-                    emptyText: "ظ„ط§ طھظˆط¬ط¯ ط´ط­ظ†ط§طھ ظ…طھط·ط§ط¨ظ‚ط©",
+                    emptyText: "لا توجد شحنات متطابقة",
                     matchedMode: true,
                   ),
                   _buildSheetAnalysisList(
                     rows: unmatched,
-                    emptyText: "ظ„ط§ طھظˆط¬ط¯ ط´ط­ظ†ط§طھ ط؛ظٹط± ظ…طھط·ط§ط¨ظ‚ط©",
+                    emptyText: "لا توجد شحنات غير متطابقة",
                     matchedMode: false,
                   ),
                 ],
@@ -2376,7 +2371,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(minimumSize: const Size(0, 42), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  child: const Text("ط¥ط؛ظ„ط§ظ‚"),
+                  child: const Text("إغلاق"),
                 ),
               ),
             ],
@@ -2410,21 +2405,21 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text("ط§ظ„ط§ط³ظ… (ط§ظ„ط´ظٹطھ): ${r['sheet_name'] ?? '-'}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text("ط§ظ„ظ…ط­ط§ظپط¸ط© (ط§ظ„ط´ظٹطھ): ${r['sheet_governorate'] ?? '-'}", textAlign: TextAlign.right),
-              if ((r['sheet_phone'] ?? '').trim().isNotEmpty) Text("ط§ظ„ظ‡ط§طھظپ (ط§ظ„ط´ظٹطھ): ${r['sheet_phone']}", textAlign: TextAlign.right),
-              Text("ط§ظ„ظ…ط¨ظ„ط؛: ${r['sheet_amount'] ?? '-'}", textAlign: TextAlign.right),
+              Text("الاسم (الشيت): ${r['sheet_name'] ?? '-'}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text("المحافظة (الشيت): ${r['sheet_governorate'] ?? '-'}", textAlign: TextAlign.right),
+              if ((r['sheet_phone'] ?? '').trim().isNotEmpty) Text("الهاتف (الشيت): ${r['sheet_phone']}", textAlign: TextAlign.right),
+              Text("المبلغ: ${r['sheet_amount'] ?? '-'}", textAlign: TextAlign.right),
               if (matchedMode) ...[
                 const SizedBox(height: 4),
-                Text("طھظ…طھ ظ…ط·ط§ط¨ظ‚طھظ‡ ظ…ط¹: ${r['order_name'] ?? '-'}", textAlign: TextAlign.right),
-                Text("ظ…ط­ط§ظپط¸ط© ط§ظ„ط£ظˆط±ط¯ط±: ${r['order_governorate'] ?? '-'}", textAlign: TextAlign.right),
-                Text("ط§ظ„ظ…ظˆط¯ظٹظ„/ط§ظ„ظ„ظˆظ†: ${(r['order_model'] ?? '-')} / ${(r['order_color'] ?? '-')}", textAlign: TextAlign.right),
-                Text("ط¯ط±ط¬ط© ط§ظ„طھط·ط§ط¨ظ‚: ${r['score'] ?? '-'}", textAlign: TextAlign.right),
+                Text("تمت مطابقته مع: ${r['order_name'] ?? '-'}", textAlign: TextAlign.right),
+                Text("محافظة الأوردر: ${r['order_governorate'] ?? '-'}", textAlign: TextAlign.right),
+                Text("الموديل/اللون: ${(r['order_model'] ?? '-')} / ${(r['order_color'] ?? '-')}", textAlign: TextAlign.right),
+                Text("درجة التطابق: ${r['score'] ?? '-'}", textAlign: TextAlign.right),
               ] else ...[
                 const SizedBox(height: 4),
-                Text("ط§ظ„ط³ط¨ط¨: ${r['reason'] ?? 'ط؛ظٹط± ظ…ط­ط¯ط¯'}", textAlign: TextAlign.right),
+                Text("السبب: ${r['reason'] ?? 'غير محدد'}", textAlign: TextAlign.right),
                 if (((r['inferred_15'] ?? '0') != '0') || ((r['inferred_16'] ?? '0') != '0') || ((r['inferred_17'] ?? '0') != '0'))
-                  Text("طھظ‚ط¯ظٹط± ط§ظ„ط£ط¬ظ‡ط²ط©: 15=${r['inferred_15'] ?? '0'}طŒ 16=${r['inferred_16'] ?? '0'}طŒ 17=${r['inferred_17'] ?? '0'}", textAlign: TextAlign.right),
+                  Text("تقدير الأجهزة: 15=${r['inferred_15'] ?? '0'}، 16=${r['inferred_16'] ?? '0'}، 17=${r['inferred_17'] ?? '0'}", textAlign: TextAlign.right),
               ],
             ],
           ),
@@ -2440,10 +2435,10 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
         backgroundColor: _dialogBg(context),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-        title: const Text("ظ…ط³ط­ ط³ط¬ظ„ ط§ظ„ط­ط±ظƒط§طھ", textAlign: TextAlign.right),
-        content: const Text("ظ‡ظ„ ط£ظ†طھ ظ…طھط£ظƒط¯ ظ…ظ† ظ…ط³ط­ ظƒظ„ ط¹ظ†ط§طµط± ط³ط¬ظ„ ط§ظ„ط­ط±ظƒط§طھطں", textAlign: TextAlign.right),
+        title: const Text("مسح سجل الحركات", textAlign: TextAlign.right),
+        content: const Text("هل أنت متأكد من مسح كل عناصر سجل الحركات؟", textAlign: TextAlign.right),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ط¥ظ„ط؛ط§ط،")),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("إلغاء")),
           TextButton(
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
@@ -2451,9 +2446,9 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
               await _saveData();
               if (!mounted || !ctx.mounted) return;
               Navigator.pop(ctx);
-              messenger.showSnackBar(const SnackBar(content: Text("طھظ… ظ…ط³ط­ ط³ط¬ظ„ ط§ظ„ط­ط±ظƒط§طھ")));
+              messenger.showSnackBar(const SnackBar(content: Text("تم مسح سجل الحركات")));
             },
-            child: const Text("ظ†ط¹ظ…طŒ ط§ظ…ط³ط­ ط§ظ„ط³ط¬ظ„", style: TextStyle(color: Colors.red)),
+            child: const Text("نعم، امسح السجل", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -2472,13 +2467,13 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
         backgroundColor: _dialogBg(context),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-        title: const Text("ط´ط­ظ†ط§طھ ظ…طھط³ظ„ظ‘ظ…ط© ظƒط§ط´", textAlign: TextAlign.right, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        title: const Text("شحنات متسلّمة كاش", textAlign: TextAlign.right, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
         content: Directionality(
           textDirection: TextDirection.rtl,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text("طھظ… ط§ظ„ط¹ط«ظˆط± ط¹ظ„ظ‰ $cashDeliveredCount ط´ط­ظ†ط© ظ…طھط³ظ„ظ‘ظ…ط© ط¨ظ‚ظٹظ…ط© 1 ط¬ظ†ظٹظ‡.\nط­ط¯ط¯ ظ…ظˆط¯ظٹظ„ ط§ظ„ط£ط¬ظ‡ط²ط©:", textAlign: TextAlign.right, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              Text("تم العثور على $cashDeliveredCount شحنة متسلّمة بقيمة 1 جنيه.\nحدد موديل الأجهزة:", textAlign: TextAlign.right, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               const SizedBox(height: 10),
               _stockField(c15, "15 Pro Max"),
               const SizedBox(height: 8),
@@ -2489,7 +2484,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, {'15': 0, '16': 0, '17': 0}), child: const Text("طھط®ط·ظٹ", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+          TextButton(onPressed: () => Navigator.pop(ctx, {'15': 0, '16': 0, '17': 0}), child: const Text("تخطي", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
           ElevatedButton(
             onPressed: () {
               final v15 = int.tryParse(c15.text) ?? 0;
@@ -2498,12 +2493,12 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
               final total = v15 + v16 + v17;
 
               if (total != cashDeliveredCount) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("ظ…ط¬ظ…ظˆط¹ ط§ظ„ط£ط¬ظ‡ط²ط© ظ„ط§ط²ظ… ظٹط³ط§ظˆظٹ $cashDeliveredCount")));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("مجموع الأجهزة لازم يساوي $cashDeliveredCount")));
                 return;
               }
               Navigator.pop(ctx, {'15': v15, '16': v16, '17': v17});
             },
-            child: const Text("طھط£ظƒظٹط¯", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            child: const Text("تأكيد", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -2555,12 +2550,12 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
     int s17 = int.tryParse(count17Controller.text) ?? 0;
     
     if (s15 > stock15 || s16 > stock16 || s17 > stock17) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ط§ظ„ظ…ط®ط²ظ† ظ„ط§ ظٹظƒظپظٹ!"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("المخزن لا يكفي!"), backgroundColor: Colors.red));
       return;
     }
     
     calculateProfit();
-    _pushUndo("ظ…ط¨ظٹط¹ط§طھ");
+    _pushUndo("مبيعات");
 
     Map<String, Map<String, int>> exactToDeduct = _createDefaultColorStock();
     List<Map<String, String>> ordersToMark = [];
@@ -2629,7 +2624,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
     });
 
     _saveData();
-    _addLogEntry("ظ…ط¨ظٹط¹ط§طھ", "ط¨ظٹط¹: (15:$s15, 16:$s16, 17:$s17)\nط§ظ„ظ…طھط¨ظ‚ظٹ: (15:$stock15, 16:$stock16, 17:$stock17)");
+    _addLogEntry("مبيعات", "بيع: (15:$s15, 16:$s16, 17:$s17)\nالمتبقي: (15:$stock15, 16:$stock16, 17:$stock17)");
     _clearInputs();
   }
 
@@ -2639,7 +2634,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF050505) : const Color(0xFFF3F4F6),
       appBar: AppBar(
-        title: const Text('ط­ط§ط³ط¨ط© ط§ظ„ط¨ظٹط²ظ†ط³ ط§ظ„ط§ط­طھط±ط§ظپظٹط©', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.2, fontSize: 20)),
+        title: const Text('حاسبة البيزنس الاحترافية', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.2, fontSize: 20)),
         centerTitle: true,
         backgroundColor: isDark ? const Color(0xFF0A0A0A) : Colors.black87,
         foregroundColor: Colors.white,
@@ -2655,21 +2650,21 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildSectionTitle("ط¨ظٹط§ظ†ط§طھ ط§ظ„طھط­طµظٹظ„"),
+              _buildSectionTitle("بيانات التحصيل"),
               _buildSectionCard(
                 isDark: isDark,
                 child: Column(
                   children: [
                     _buildImportBtn(),
                     const SizedBox(height: 12),
-                    _buildInput(collectionController, 'طµط§ظپظٹ ط§ظ„طھط­طµظٹظ„ ظ…ظ† J&T', Icons.payments, isDark),
+                    _buildInput(collectionController, 'صافي التحصيل من J&T', Icons.payments, isDark),
                     const SizedBox(height: 12),
-                    _buildInput(expensesController, 'ظ…طµط§ط±ظٹظپ ط¥ط¶ط§ظپظٹط©', Icons.money_off, isDark),
+                    _buildInput(expensesController, 'مصاريف إضافية', Icons.money_off, isDark),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
-              _buildSectionTitle("ط§ظ„ط£ط¬ظ‡ط²ط© ط§ظ„ظ…ط¨ط§ط¹ط© ط§ظ„ط¢ظ†"),
+              _buildSectionTitle("الأجهزة المباعة الآن"),
               _buildSectionCard(
                 isDark: isDark,
                 child: Column(
@@ -2720,14 +2715,14 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
       ),
       child: Column(
         children: [
-          const Text("طµط§ظپظٹ ط§ظ„ط±ط¨ط­", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 18)),
-          Text("${netProfit.toStringAsFixed(2)} ط¬.ظ…", style: const TextStyle(color: Color(0xFF64D2FF), fontSize: 48, fontWeight: FontWeight.w900)),
+          const Text("صافي الربح", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 18)),
+          Text("${netProfit.toStringAsFixed(2)} ج.م", style: const TextStyle(color: Color(0xFF64D2FF), fontSize: 48, fontWeight: FontWeight.w900)),
           const Divider(color: Colors.white24, height: 30),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _shareInfo("ظ†طµظٹط¨ظƒ", myShare),
-              _shareInfo("ط§ظ„ط´ط±ظٹظƒ", partnerShare),
+              _shareInfo("نصيبك", myShare),
+              _shareInfo("الشريك", partnerShare),
             ],
           ),
         ],
@@ -2747,7 +2742,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
     child: ElevatedButton.icon(
       onPressed: _importJAndTSheet,
       icon: const Icon(Icons.file_present),
-      label: const Text("ط³ط­ط¨ ط´ظٹطھ (Excel/CSV)"),
+      label: const Text("سحب شيت (Excel/CSV)"),
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF0A84FF),
         foregroundColor: Colors.white,
@@ -2782,7 +2777,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
             children: [
               Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
               const SizedBox(height: 2),
-              Text("ط§ظ„ظ…ط®ط²ظˆظ†: $stock", style: TextStyle(fontSize: 15, color: stock > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.w600)),
+              Text("المخزون: $stock", style: TextStyle(fontSize: 15, color: stock > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -2819,7 +2814,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
             minimumSize: const Size(0, 52),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
-          child: const Text("طھط£ظƒظٹط¯ ظˆط®طµظ… ظ…ط®ط²ظ†", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          child: const Text("تأكيد وخصم مخزن", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
         ),
       ),
       const SizedBox(width: 12),
@@ -2831,7 +2826,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
             side: const BorderSide(color: Color(0xFF3A3A3C)),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
-          child: const Text("ط§ط­ط³ط¨ ط§ظ„ط±ط¨ط­", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          child: const Text("احسب الربح", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
         ),
       ),
     ],
@@ -2843,7 +2838,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
-          Text("ط§ظ„ظ‚ط§ط¦ظ…ط©", textAlign: TextAlign.right, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black87)),
+          Text("القائمة", textAlign: TextAlign.right, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black87)),
           const SizedBox(height: 12),
           InkWell(
             borderRadius: BorderRadius.circular(12),
@@ -2864,29 +2859,29 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      "${myAccountBalance.toStringAsFixed(2)} ط¬.ظ…",
+                      "${myAccountBalance.toStringAsFixed(2)} ج.م",
                       textAlign: TextAlign.right,
                       style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF64D2FF)),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text("ط­ط³ط§ط¨ظٹ", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: isDark ? Colors.white : Colors.black87)),
+                  Text("حسابي", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: isDark ? Colors.white : Colors.black87)),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
-          _drawerTile(icon: Icons.inventory_2_rounded, title: "ط§ظ„ظ…ط®ط²ظ†", onTap: () { Navigator.pop(context); _openWarehousePage(); }),
-          _drawerTile(icon: Icons.home_work_rounded, title: "ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ", onTap: () { Navigator.pop(context); _openHomeWarehousePage(); }),
-          _drawerTile(icon: Icons.history_edu_rounded, title: "ط³ط¬ظ„ ط§ظ„ط­ط±ظƒط§طھ", onTap: () { Navigator.pop(context); _showLog(); }),
-          _drawerTile(icon: Icons.playlist_add_check_rounded, title: "ط§ط³طھظٹط±ط§ط¯ ط£ظˆط±ط¯ط±ط§طھ ظˆط§طھط³ط§ط¨", onTap: () { Navigator.pop(context); _openAiAssistant(initialTabIndex: 1); }),
-          _drawerTile(icon: Icons.people_alt_rounded, title: "ط¯ط§طھط§ ط§ظ„ط¹ظ…ظ„ط§ط،", onTap: () { Navigator.pop(context); _openCustomersPage(); }),
-          _drawerTile(icon: Icons.smart_toy_rounded, title: "ظ…ط³ط§ط¹ط¯ AI", onTap: () { Navigator.pop(context); _openAiAssistant(); }),
-          _drawerTile(icon: Icons.delete_sweep_rounded, title: "ظ…ط³ط­ ظƒظ„ ط§ظ„ظ…ط®ط²ظˆظ†", danger: true, onTap: () { Navigator.pop(context); _confirmClearStock(); }),
+          _drawerTile(icon: Icons.inventory_2_rounded, title: "المخزن", onTap: () { Navigator.pop(context); _openWarehousePage(); }),
+          _drawerTile(icon: Icons.home_work_rounded, title: "مخزن البيت", onTap: () { Navigator.pop(context); _openHomeWarehousePage(); }),
+          _drawerTile(icon: Icons.history_edu_rounded, title: "سجل الحركات", onTap: () { Navigator.pop(context); _showLog(); }),
+          _drawerTile(icon: Icons.playlist_add_check_rounded, title: "استيراد أوردرات واتساب", onTap: () { Navigator.pop(context); _openAiAssistant(initialTabIndex: 1); }),
+          _drawerTile(icon: Icons.people_alt_rounded, title: "داتا العملاء", onTap: () { Navigator.pop(context); _openCustomersPage(); }),
+          _drawerTile(icon: Icons.smart_toy_rounded, title: "مساعد AI", onTap: () { Navigator.pop(context); _openAiAssistant(); }),
+          _drawerTile(icon: Icons.delete_sweep_rounded, title: "مسح كل المخزون", danger: true, onTap: () { Navigator.pop(context); _confirmClearStock(); }),
           const SizedBox(height: 8),
           Container(height: 1, color: isDark ? Colors.white12 : Colors.black12),
           const SizedBox(height: 8),
-          _drawerTile(icon: Icons.settings_rounded, title: "ط£ط³ط¹ط§ط± ط§ظ„ط´ط±ط§ط،", onTap: () { Navigator.pop(context); _showPriceDialog(); }),
+          _drawerTile(icon: Icons.settings_rounded, title: "أسعار الشراء", onTap: () { Navigator.pop(context); _showPriceDialog(); }),
         ],
       ),
     ),
@@ -2927,20 +2922,20 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
       MaterialPageRoute(
         builder: (_) => WarehousePage(
           initialStock: _cloneColorStock(colorStock),
-          title: 'ط§ظ„ظ…ط®ط²ظ† ط§ظ„ط±ط¦ظٹط³ظٹ',
-          saveLabel: 'ط­ظپط¸ ط§ظ„ظ…ط®ط²ظ† ط§ظ„ط±ط¦ظٹط³ظٹ',
+          title: 'المخزن الرئيسي',
+          saveLabel: 'حفظ المخزن الرئيسي',
         ),
       ),
     );
 
     if (!mounted || updatedStock == null) return;
-    _pushUndo("طھط¹ط¯ظٹظ„ ظ…ط®ط²ظ†");
+    _pushUndo("تعديل مخزن");
     setState(() {
       colorStock = updatedStock;
       _syncTotalsFromColorStock();
     });
     await _saveData();
-    await _addLogEntry("طھط¹ط¯ظٹظ„ ظ…ط®ط²ظ†", "طھط­ط¯ظٹط« ظƒظ…ظٹط§طھ ط§ظ„ظ…ط®ط²ظ† ظ…ظ† طµظپط­ط© ط§ظ„ظ…ط®ط²ظ†\nط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ: (15:$stock15, 16:$stock16, 17:$stock17)");
+    await _addLogEntry("تعديل مخزن", "تحديث كميات المخزن من صفحة المخزن\nالإجمالي: (15:$stock15, 16:$stock16, 17:$stock17)");
   }
 
   Future<void> _openHomeWarehousePage() async {
@@ -2949,20 +2944,20 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
       MaterialPageRoute(
         builder: (_) => WarehousePage(
           initialStock: _cloneColorStock(homeColorStock),
-          title: 'ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ',
-          saveLabel: 'ط­ظپط¸ ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ',
+          title: 'مخزن البيت',
+          saveLabel: 'حفظ مخزن البيت',
         ),
       ),
     );
 
     if (!mounted || updatedStock == null) return;
-    _pushUndo("طھط¹ط¯ظٹظ„ ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ");
+    _pushUndo("تعديل مخزن البيت");
     setState(() {
       homeColorStock = updatedStock;
       _syncHomeTotalsFromColorStock();
     });
     await _saveData();
-    await _addLogEntry("طھط¹ط¯ظٹظ„ ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ", "طھط­ط¯ظٹط« ظƒظ…ظٹط§طھ ظ…ط®ط²ظ† ط§ظ„ط¨ظٹطھ\nط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ: (15:$homeStock15, 16:$homeStock16, 17:$homeStock17)");
+    await _addLogEntry("تعديل مخزن البيت", "تحديث كميات مخزن البيت\nالإجمالي: (15:$homeStock15, 16:$homeStock16, 17:$homeStock17)");
   }
 
   void _showLog() {
@@ -2976,7 +2971,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
         titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
         contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
         actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        title: const Text("ط³ط¬ظ„ ط§ظ„ط­ط±ظƒط§طھ", textAlign: TextAlign.right),
+        title: const Text("سجل الحركات", textAlign: TextAlign.right),
         content: SizedBox(
           width: double.maxFinite,
           height: 420,
@@ -2987,7 +2982,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                     children: [
                       Icon(Icons.inbox_outlined, size: 44, color: isDark ? Colors.white54 : Colors.black45),
                       const SizedBox(height: 8),
-                      const Text("ظ„ط§ طھظˆط¬ط¯ ط­ط±ظƒط§طھ ظ…ط³ط¬ظ„ط© ط¨ط¹ط¯"),
+                      const Text("لا توجد حركات مسجلة بعد"),
                     ],
                   ),
                 )
@@ -3028,7 +3023,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                                             const SizedBox(width: 8),
                                             const Expanded(
                                               child: Text(
-                                                "ط§ط®طھط± ط§ظ„ط¹ظ…ظ„ظٹط© ط§ظ„طھظٹ طھط±ظٹط¯ ط§ظ„طھط±ط§ط¬ط¹ ط¹ظ†ظ‡ط§",
+                                                "اختر العملية التي تريد التراجع عنها",
                                                 style: TextStyle(fontWeight: FontWeight.w800),
                                               ),
                                             ),
@@ -3061,7 +3056,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                                               child: OutlinedButton.icon(
                                                 onPressed: () => Navigator.pop(sheetCtx),
                                                 icon: const Icon(Icons.close_rounded, size: 18),
-                                                label: const Text("ط¥ظ„ط؛ط§ط،"),
+                                                label: const Text("إلغاء"),
                                               ),
                                             ),
                                             const SizedBox(width: 10),
@@ -3069,7 +3064,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                                               child: ElevatedButton.icon(
                                                 onPressed: () => Navigator.pop(sheetCtx, _undoStack.length - 1),
                                                 icon: const Icon(Icons.undo_rounded, size: 18),
-                                                label: const Text("ط¢ط®ط± ط¹ظ…ظ„ظٹط©"),
+                                                label: const Text("آخر عملية"),
                                               ),
                                             ),
                                           ],
@@ -3092,14 +3087,14 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                               backgroundColor: _dialogBg(context),
                               surfaceTintColor: Colors.transparent,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-                              title: const Text("طھط£ظƒظٹط¯ ط§ظ„طھط±ط§ط¬ط¹", textAlign: TextAlign.right),
+                              title: const Text("تأكيد التراجع", textAlign: TextAlign.right),
                               content: Text(
-                                "ط³ظٹطھظ… ط§ظ„ط±ط¬ظˆط¹ ظ„ظ„ط­ط§ظ„ط© ظ‚ط¨ظ„ ط§ظ„ط¹ظ…ظ„ظٹط©:\n${picked.label}\n${_formatUndoIso(picked.at)}\n\nظ…ظ„ط§ط­ط¸ط©: ط£ظٹ ط¹ظ…ظ„ظٹط§طھ طھظ…طھ ط¨ط¹ط¯ظ‡ط§ ط³ظٹطھظ… ط¥ظ„ط؛ط§ط¤ظ‡ط§.",
+                                "سيتم الرجوع للحالة قبل العملية:\n${picked.label}\n${_formatUndoIso(picked.at)}\n\nملاحظة: أي عمليات تمت بعدها سيتم إلغاؤها.",
                                 textAlign: TextAlign.right,
                               ),
                               actions: [
-                                TextButton(onPressed: () => Navigator.pop(c2, false), child: const Text("ط¥ظ„ط؛ط§ط،")),
-                                ElevatedButton(onPressed: () => Navigator.pop(c2, true), child: const Text("طھط±ط§ط¬ط¹")),
+                                TextButton(onPressed: () => Navigator.pop(c2, false), child: const Text("إلغاء")),
+                                ElevatedButton(onPressed: () => Navigator.pop(c2, true), child: const Text("تراجع")),
                               ],
                             ),
                           );
@@ -3110,11 +3105,11 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                           if (!mounted) return;
                           if (ctx.mounted) Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(ok ? "طھظ… ط§ظ„طھط±ط§ط¬ط¹ ط¨ظ†ط¬ط§ط­" : "ظ„ط§ ظٹظˆط¬ط¯ ظ…ط§ ظٹظ…ظƒظ† ط§ظ„طھط±ط§ط¬ط¹ ط¹ظ†ظ‡")),
+                            SnackBar(content: Text(ok ? "تم التراجع بنجاح" : "لا يوجد ما يمكن التراجع عنه")),
                           );
                         },
                   icon: const Icon(Icons.undo_rounded, size: 18),
-                  label: const Text("طھط±ط§ط¬ط¹"),
+                  label: const Text("تراجع"),
                 ),
               ),
               const SizedBox(width: 8),
@@ -3122,7 +3117,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 child: OutlinedButton.icon(
                   onPressed: inventoryLog.isEmpty ? null : _confirmClearLog,
                   icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-                  label: const Text("ظ…ط³ط­ ط§ظ„ط³ط¬ظ„"),
+                  label: const Text("مسح السجل"),
                 ),
               ),
               const SizedBox(width: 8),
@@ -3130,7 +3125,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(minimumSize: const Size(0, 42), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  child: const Text("ط¥ط؛ظ„ط§ظ‚"),
+                  child: const Text("إغلاق"),
                 ),
               ),
             ],
@@ -3229,7 +3224,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
       _rebuildCustomersFromOrders();
       await _saveData();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("طھظ… طھظ†ط¸ظٹظپ ط£ط±ظ‚ط§ظ… ط§ظ„ظ‡ظˆط§طھظپ (طھط­ط¯ظٹط« $changed ط£ظˆط±ط¯ط±)")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("تم تنظيف أرقام الهواتف (تحديث $changed أوردر)")));
     }
 
     Future<void> deleteCustomer(Map<String, String> customer) async {
@@ -3240,14 +3235,14 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
           backgroundColor: _dialogBg(context),
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-          title: const Text("ظ…ط³ط­ ط¹ظ…ظٹظ„", textAlign: TextAlign.right),
+          title: const Text("مسح عميل", textAlign: TextAlign.right),
           content: Text(
-            "ط¯ظ‡ ظ‡ظٹظ…ط³ط­ ظƒظ„ ط£ظˆط±ط¯ط±ط§طھ ط§ظ„ط¹ظ…ظٹظ„ ط¯ظ‡ ظ…ظ† ط§ظ„طھط·ط¨ظٹظ‚.\n\nط§ظ„ط¹ظ…ظٹظ„: ${customer['name'] ?? '-'}\nط§ظ„ظ‡ط§طھظپ: ${customer['phone'] ?? '-'}\n\nظ…طھط£ظƒط¯طں",
+            "ده هيمسح كل أوردرات العميل ده من التطبيق.\n\nالعميل: ${customer['name'] ?? '-'}\nالهاتف: ${customer['phone'] ?? '-'}\n\nمتأكد؟",
             textAlign: TextAlign.right,
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("ط¥ظ„ط؛ط§ط،")),
-            TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("ظ…ط³ط­", style: TextStyle(color: Colors.red))),
+            TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("إلغاء")),
+            TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("مسح", style: TextStyle(color: Colors.red))),
           ],
         ),
       );
@@ -3262,7 +3257,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
       selectedKeys.remove(key);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("طھظ… ظ…ط³ط­ $removed ط£ظˆط±ط¯ط±")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("تم مسح $removed أوردر")));
     }
 
     Future<void> deleteSelectedCustomers(StateSetter setStateDialog) async {
@@ -3273,14 +3268,14 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
           backgroundColor: _dialogBg(context),
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-          title: const Text("ظ…ط³ط­ ط§ظ„ظ…ط­ط¯ط¯", textAlign: TextAlign.right),
+          title: const Text("مسح المحدد", textAlign: TextAlign.right),
           content: Text(
-            "ط¯ظ‡ ظ‡ظٹظ…ط³ط­ ظƒظ„ ط£ظˆط±ط¯ط±ط§طھ ط§ظ„ط¹ظ…ظ„ط§ط، ط§ظ„ظ…ط­ط¯ط¯ظٹظ† (${selectedKeys.length}).\nظ…طھط£ظƒط¯طں",
+            "ده هيمسح كل أوردرات العملاء المحددين (${selectedKeys.length}).\nمتأكد؟",
             textAlign: TextAlign.right,
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("ط¥ظ„ط؛ط§ط،")),
-            TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("ظ…ط³ط­", style: TextStyle(color: Colors.red))),
+            TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("إلغاء")),
+            TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("مسح", style: TextStyle(color: Colors.red))),
           ],
         ),
       );
@@ -3309,7 +3304,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("طھظ… ظ…ط³ط­ $removedOrders ط£ظˆط±ط¯ط±")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("تم مسح $removedOrders أوردر")));
     }
 
     Future<void> editCustomer(Map<String, String> customer) async {
@@ -3328,25 +3323,25 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
           backgroundColor: _dialogBg(context),
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-          title: const Text("طھط¹ط¯ظٹظ„ ط¨ظٹط§ظ†ط§طھ ط¹ظ…ظٹظ„", textAlign: TextAlign.right),
+          title: const Text("تعديل بيانات عميل", textAlign: TextAlign.right),
           content: SizedBox(
             width: 520,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nameCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "ط§ظ„ط§ط³ظ…")),
+                TextField(controller: nameCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "الاسم")),
                 const SizedBox(height: 8),
-                TextField(controller: phoneCtrl, keyboardType: TextInputType.phone, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "ط§ظ„ظ‡ط§طھظپ")),
+                TextField(controller: phoneCtrl, keyboardType: TextInputType.phone, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "الهاتف")),
                 const SizedBox(height: 8),
-                TextField(controller: govCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "ط§ظ„ظ…ط­ط§ظپط¸ط©")),
+                TextField(controller: govCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "المحافظة")),
                 const SizedBox(height: 8),
-                TextField(controller: addrCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "ط§ظ„ط¹ظ†ظˆط§ظ†")),
+                TextField(controller: addrCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: "العنوان")),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("ط¥ظ„ط؛ط§ط،")),
-            ElevatedButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("ط­ظپط¸")),
+            TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text("إلغاء")),
+            ElevatedButton(onPressed: () => Navigator.pop(dctx, true), child: const Text("حفظ")),
           ],
         ),
       );
@@ -3390,7 +3385,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
       _rebuildCustomersFromOrders();
       await _saveData();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("طھظ… طھط­ط¯ظٹط« $updated ط£ظˆط±ط¯ط± ظ„ظ‡ط°ط§ ط§ظ„ط¹ظ…ظٹظ„")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("تم تحديث $updated أوردر لهذا العميل")));
     }
 
     void applyFilter(StateSetter setStateDialog) {
@@ -3420,7 +3415,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
           title: Row(
             children: [
               IconButton(
-                tooltip: selectionMode ? "ط¥ظ„ط؛ط§ط، ط§ظ„طھط­ط¯ظٹط¯" : "طھط­ط¯ظٹط¯",
+                tooltip: selectionMode ? "إلغاء التحديد" : "تحديد",
                 onPressed: () {
                   setStateDialog(() {
                     selectionMode = !selectionMode;
@@ -3431,7 +3426,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
               ),
               if (selectionMode)
                 IconButton(
-                  tooltip: "طھط­ط¯ظٹط¯ ط§ظ„ظƒظ„",
+                  tooltip: "تحديد الكل",
                   onPressed: () {
                     setStateDialog(() {
                       for (final c in filtered) {
@@ -3443,14 +3438,14 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 ),
               if (selectionMode)
                 IconButton(
-                  tooltip: "ظ…ط³ط­ ط§ظ„ظ…ط­ط¯ط¯",
+                  tooltip: "مسح المحدد",
                   onPressed: selectedKeys.isEmpty ? null : () => deleteSelectedCustomers(setStateDialog),
                   icon: Icon(Icons.delete_sweep_rounded, color: selectedKeys.isEmpty ? null : Colors.red),
                 ),
               const Spacer(),
               const Expanded(
                 flex: 3,
-                child: Text("ط¯ط§طھط§ ط§ظ„ط¹ظ…ظ„ط§ط،", textAlign: TextAlign.right),
+                child: Text("داتا العملاء", textAlign: TextAlign.right),
               ),
             ],
           ),
@@ -3464,7 +3459,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                   textAlign: TextAlign.right,
                   onChanged: (_) => applyFilter(setStateDialog),
                   decoration: InputDecoration(
-                    hintText: "ط§ط¨ط­ط« ط¨ط§ظ„ط§ط³ظ… ط£ظˆ ط§ظ„ط±ظ‚ظ… ط£ظˆ ط§ظ„ط¹ظ†ظˆط§ظ†",
+                    hintText: "ابحث بالاسم أو الرقم أو العنوان",
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: searchCtrl.text.trim().isEmpty
                         ? null
@@ -3484,7 +3479,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 const SizedBox(height: 10),
                 Expanded(
                   child: filtered.isEmpty
-                      ? const Center(child: Text("ظ„ط§ ظٹظˆط¬ط¯ ط¹ظ…ظ„ط§ط،"))
+                      ? const Center(child: Text("لا يوجد عملاء"))
                       : ListView.separated(
                           itemCount: filtered.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -3538,7 +3533,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                                           ),
                                         if (!selectionMode)
                                           IconButton(
-                                            tooltip: "ظ…ط³ط­ ط§ظ„ط¹ظ…ظٹظ„",
+                                            tooltip: "مسح العميل",
                                             onPressed: () async {
                                               await deleteCustomer(c);
                                               applyFilter(setStateDialog);
@@ -3557,12 +3552,12 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                                       ],
                                     ),
                                     const SizedBox(height: 4),
-                                    Text("ط§ظ„ظ‡ط§طھظپ: ${c['phone'] ?? '-'}"),
-                                    if (extraPhones.isNotEmpty) Text("ط£ط±ظ‚ط§ظ… ط¥ط¶ط§ظپظٹط©: $extraPhones"),
-                                    Text("ط§ظ„ظ…ط­ط§ظپط¸ط©: ${c['governorate'] ?? '-'}"),
-                                    Text("ط§ظ„ط¹ظ†ظˆط§ظ†: ${(c['address'] ?? '').isEmpty ? '-' : c['address']!}"),
-                                    Text("ط¹ط¯ط¯ ط§ظ„ط£ظˆط±ط¯ط±ط§طھ: $cnt"),
-                                    if (lastAt.isNotEmpty) Text("ط¢ط®ط± ط£ظˆط±ط¯ط±: ${formatIso(lastAt)}"),
+                                    Text("الهاتف: ${c['phone'] ?? '-'}"),
+                                    if (extraPhones.isNotEmpty) Text("أرقام إضافية: $extraPhones"),
+                                    Text("المحافظة: ${c['governorate'] ?? '-'}"),
+                                    Text("العنوان: ${(c['address'] ?? '').isEmpty ? '-' : c['address']!}"),
+                                    Text("عدد الأوردرات: $cnt"),
+                                    if (lastAt.isNotEmpty) Text("آخر أوردر: ${formatIso(lastAt)}"),
                                   ],
                                 ),
                               ),
@@ -3579,9 +3574,9 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
                 await normalizeOrders();
                 applyFilter(setStateDialog);
               },
-              child: const Text("طھظ†ط¸ظٹظپ ط§ظ„ط£ط±ظ‚ط§ظ…"),
+              child: const Text("تنظيف الأرقام"),
             ),
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ط¥ط؛ظ„ط§ظ‚")),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("إغلاق")),
           ],
         ),
       ),
@@ -3608,8 +3603,8 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
     final lines = entry.split('\n');
     final header = lines.isNotEmpty ? lines.first : entry;
     final details = lines.length > 1 ? lines.skip(1).join('\n') : '';
-    final isSale = entry.contains('ظ…ط¨ظٹط¹ط§طھ') || entry.contains('ط®طµظ…') || entry.contains('AI');
-    final isSupply = entry.contains('طھظˆط±ظٹط¯') || entry.contains('ط¥ط¶ط§ظپط©');
+    final isSale = entry.contains('مبيعات') || entry.contains('خصم') || entry.contains('AI');
+    final isSupply = entry.contains('توريد') || entry.contains('إضافة');
     final color = isSale ? Colors.red : isSupply ? Colors.green : Colors.orange;
     final icon = isSale ? Icons.trending_down_rounded : isSupply ? Icons.add_box_rounded : Icons.inventory_2_rounded;
 
@@ -3702,20 +3697,20 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
         children: [
           Text("$model Pro Max", textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
-          Text("$value ط¬ظ‡ط§ط²", textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: color, fontWeight: FontWeight.w900)),
+          Text("$value جهاز", textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: color, fontWeight: FontWeight.w900)),
         ],
       ),
     ),
   );
 
   String _normalizeLogLineTitle(String line) {
-    if (line.contains("ط¥ط¶ط§ظپط©")) return "ط§ظ„ط¥ط¶ط§ظپط©";
-    if (line.contains("ط§ظ„ط±طµظٹط¯ ط¨ط¹ط¯")) return "ط§ظ„ط±طµظٹط¯ ط¨ط¹ط¯ ط§ظ„ط¹ظ…ظ„ظٹط©";
-    if (line.contains("ظ‚ط¨ظ„ ط§ظ„ط¬ط±ط¯")) return "ظ‚ط¨ظ„ ط§ظ„ط¬ط±ط¯";
-    if (line.contains("ط¨ط¹ط¯ ط§ظ„ط¬ط±ط¯")) return "ط¨ط¹ط¯ ط§ظ„ط¬ط±ط¯";
-    if (line.contains("ط¨ظٹط¹")) return "ط§ظ„ظ…ط¨ظٹط¹ط§طھ";
-    if (line.contains("ط§ظ„ظ…طھط¨ظ‚ظٹ")) return "ط§ظ„ظ…طھط¨ظ‚ظٹ";
-    return "طھظپط§طµظٹظ„";
+    if (line.contains("إضافة")) return "الإضافة";
+    if (line.contains("الرصيد بعد")) return "الرصيد بعد العملية";
+    if (line.contains("قبل الجرد")) return "قبل الجرد";
+    if (line.contains("بعد الجرد")) return "بعد الجرد";
+    if (line.contains("بيع")) return "المبيعات";
+    if (line.contains("المتبقي")) return "المتبقي";
+    return "تفاصيل";
   }
 
   double _toDoubleSafe(dynamic value) {
@@ -3752,13 +3747,13 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
         backgroundColor: _dialogBg(context),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-        title: const Text("ط£ط³ط¹ط§ط± ط§ظ„ط´ط±ط§ط،"),
+        title: const Text("أسعار الشراء"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _priceField(p15, "ط³ط¹ط± ط§ظ„ظ€ 15"), const SizedBox(height: 8),
-            _priceField(p16, "ط³ط¹ط± ط§ظ„ظ€ 16"), const SizedBox(height: 8),
-            _priceField(p17, "ط³ط¹ط± ط§ظ„ظ€ 17"),
+            _priceField(p15, "سعر الـ 15"), const SizedBox(height: 8),
+            _priceField(p16, "سعر الـ 16"), const SizedBox(height: 8),
+            _priceField(p17, "سعر الـ 17"),
           ],
         ),
         actions: [
@@ -3772,7 +3767,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
               _saveData();
               Navigator.pop(ctx);
             },
-            child: const Text("طھط­ط¯ظٹط«"),
+            child: const Text("تحديث"),
           ),
         ],
       ),
@@ -3787,7 +3782,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
         backgroundColor: _dialogBg(context),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
-        title: const Text("ط­ط³ط§ط¨ظٹ"),
+        title: const Text("حسابي"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -3797,7 +3792,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               decoration: InputDecoration(
-                labelText: "ط±طµظٹط¯ ط­ط³ط§ط¨ظٹ", suffixText: "ط¬.ظ…",
+                labelText: "رصيد حسابي", suffixText: "ج.م",
                 filled: true, fillColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A1A1A) : Colors.grey.shade100,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               ),
@@ -3805,16 +3800,16 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ط¥ظ„ط؛ط§ط،")),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("إلغاء")),
           ElevatedButton(
             onPressed: () {
               final newValue = _toDoubleSafe(ctrl.text);
               setState(() => myAccountBalance = newValue);
               _saveData();
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("طھظ… طھط­ط¯ظٹط« ط­ط³ط§ط¨ظٹ")));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تحديث حسابي")));
             },
-            child: const Text("ط­ظپط¸"),
+            child: const Text("حفظ"),
           ),
         ],
       ),
@@ -3838,7 +3833,7 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
 }
 
 class WarehousePage extends StatefulWidget {
-  const WarehousePage({super.key, required this.initialStock, this.title = 'ط§ظ„ظ…ط®ط²ظ†', this.saveLabel = 'ط­ظپط¸ ط§ظ„ظ…ط®ط²ظ†'});
+  const WarehousePage({super.key, required this.initialStock, this.title = 'المخزن', this.saveLabel = 'حفظ المخزن'});
   final Map<String, Map<String, int>> initialStock;
   final String title;
   final String saveLabel;
@@ -3849,9 +3844,9 @@ class WarehousePage extends StatefulWidget {
 
 class _WarehousePageState extends State<WarehousePage> {
   static const Map<String, List<String>> _modelColors = {
-    '15 Pro Max': ['ط³ظ„ظپط±', 'ط§ط³ظˆط¯', 'ط§ط²ط±ظ‚'],
-    '16 Pro Max': ['ط³ظ„ظپط±', 'ط¯ظ‡ط¨ظٹ', 'ط§ط³ظˆط¯'],
-    '17 Pro Max': ['ط¨ط±طھظ‚ط§ظ„ظٹ', 'ط³ظ„ظپط±', 'ط§ط³ظˆط¯', 'ط¯ظ‡ط¨ظٹ', 'طھظٹطھط§ظ†ظٹظˆظ…', 'ظƒط­ظ„ظٹ'],
+    '15 Pro Max': ['سلفر', 'اسود', 'ازرق'],
+    '16 Pro Max': ['سلفر', 'دهبي', 'اسود'],
+    '17 Pro Max': ['برتقالي', 'سلفر', 'اسود', 'دهبي', 'تيتانيوم', 'كحلي'],
   };
 
   late Map<String, Map<String, int>> stock;
@@ -3885,14 +3880,14 @@ class _WarehousePageState extends State<WarehousePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _isDark ? const Color(0xFF111111) : Colors.white,
-        title: Text('طھط¹ط¯ظٹظ„ $model - $color', textAlign: TextAlign.right),
+        title: Text('تعديل $model - $color', textAlign: TextAlign.right),
         content: TextField(
           controller: ctrl, keyboardType: TextInputType.number, textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800), decoration: const InputDecoration(hintText: '0'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ط¥ظ„ط؛ط§ط،')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text) ?? 0), child: const Text('ط­ظپط¸')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text) ?? 0), child: const Text('حفظ')),
         ],
       ),
     );
@@ -3906,11 +3901,11 @@ class _WarehousePageState extends State<WarehousePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _isDark ? const Color(0xFF111111) : Colors.white,
-        title: const Text('ظ…ط³ط­ ط§ظ„ظ…ط®ط²ظ†', textAlign: TextAlign.right),
-        content: const Text('طھط£ظƒظٹط¯ طھطµظپظٹط± ظƒظ„ ظƒظ…ظٹط§طھ ط§ظ„ظ…ط®ط²ظ†طں', textAlign: TextAlign.right),
+        title: const Text('مسح المخزن', textAlign: TextAlign.right),
+        content: const Text('تأكيد تصفير كل كميات المخزن؟', textAlign: TextAlign.right),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ط¥ظ„ط؛ط§ط،')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('طھطµظپظٹط±')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تصفير')),
         ],
       ),
     );
@@ -3942,7 +3937,7 @@ class _WarehousePageState extends State<WarehousePage> {
         foregroundColor: Colors.white,
         title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w800)),
         actions: [
-          IconButton(onPressed: _clearAll, icon: const Icon(Icons.delete_outline_rounded), tooltip: 'طھطµظپظٹط± ط§ظ„ظƒظ„'),
+          IconButton(onPressed: _clearAll, icon: const Icon(Icons.delete_outline_rounded), tooltip: 'تصفير الكل'),
         ],
       ),
       body: Directionality(
@@ -3957,7 +3952,7 @@ class _WarehousePageState extends State<WarehousePage> {
                 children: [
                   const Icon(Icons.inventory_2_rounded, color: Color(0xFF64D2FF)),
                   const SizedBox(width: 8),
-                  const Expanded(child: Text('ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط£ط¬ظ‡ط²ط©', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15))),
+                  const Expanded(child: Text('إجمالي الأجهزة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15))),
                   Text(_grandTotal.toString(), style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Color(0xFF64D2FF))),
                 ],
               ),
