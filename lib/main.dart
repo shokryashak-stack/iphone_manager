@@ -1791,6 +1791,217 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
   int _parseIntSafe(String v) => int.tryParse(_toWesternDigits(v).replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
+  bool _isOrderClosedForSheetMatch(Map<String, String> order) {
+    final status = _normalizeArabicName(order['status'] ?? '');
+    if (status == 'delivered' || status == 'cancelled' || status == 'canceled') return true;
+    if ((order['sheet_matched_pending'] ?? '') == 'true') return true;
+    return false;
+  }
+
+  bool _governorateMatchesForSheet(String sheetGov, String orderGov) {
+    final a = _normalizeGovernorateForMatch(sheetGov);
+    final b = _normalizeGovernorateForMatch(orderGov);
+    if (a.isEmpty || b.isEmpty) return true;
+    return a == b || a.contains(b) || b.contains(a);
+  }
+
+  bool _hasTwoConsecutiveWordsForSheet(String sheetName, String orderName) {
+    final a = _normalizePersonNameForMatch(sheetName);
+    final b = _normalizePersonNameForMatch(orderName);
+    final words = a.split(' ').where((w) => w.trim().isNotEmpty).toList();
+    if (words.length < 2 || b.isEmpty) return false;
+    for (int i = 0; i < words.length - 1; i++) {
+      final pair = '${words[i]} ${words[i + 1]}';
+      if (b.contains(pair)) return true;
+    }
+    return false;
+  }
+
+  List<Map<String, dynamic>> _rankOrdersForSheetRow({
+    required String sheetName,
+    required String sheetGov,
+    Set<int>? excludedOrderIndices,
+  }) {
+    final targetName = _normalizePersonNameForMatch(sheetName);
+    final targetGov = _normalizeGovernorateForMatch(sheetGov);
+    if (targetName.isEmpty) return const <Map<String, dynamic>>[];
+    final excluded = excludedOrderIndices ?? const <int>{};
+    final ranked = <Map<String, dynamic>>[];
+
+    for (int oi = 0; oi < orders.length; oi++) {
+      if (excluded.contains(oi)) continue;
+      final order = orders[oi];
+      if (_isOrderClosedForSheetMatch(order)) continue;
+
+      final orderName = _normalizePersonNameForMatch(order['name'] ?? '');
+      if (orderName.isEmpty) continue;
+
+      final orderGov = _normalizeGovernorateForMatch(order['governorate'] ?? '');
+      final govOk = _governorateMatchesForSheet(targetGov, orderGov);
+      final exact = orderName == targetName;
+      final partial = orderName.contains(targetName) || targetName.contains(orderName);
+      final twoWords = _hasTwoConsecutiveWordsForSheet(sheetName, order['name'] ?? '');
+      final nameScore = _nameMatchScore(sheetName, order['name'] ?? '');
+      final acceptedByName = exact || partial || twoWords || nameScore >= 0.45;
+      final accepted = govOk && acceptedByName;
+
+      double rank = nameScore;
+      if (exact) rank += 1.00;
+      if (partial) rank += 0.35;
+      if (twoWords) rank += 0.25;
+      if (targetGov.isNotEmpty && orderGov == targetGov) rank += 0.15;
+      if (!govOk) rank -= 0.50;
+      if (!acceptedByName) rank -= 0.40;
+
+      String rejectReason = 'ok';
+      if (!govOk) {
+        rejectReason = 'governorate_mismatch';
+      } else if (!acceptedByName) {
+        rejectReason = 'name_too_weak';
+      }
+
+      ranked.add({
+        'index': oi,
+        'order': order,
+        'rank': rank,
+        'name_score': nameScore,
+        'accepted': accepted,
+        'reject_reason': rejectReason,
+      });
+    }
+
+    ranked.sort((a, b) => ((b['rank'] as double)).compareTo(a['rank'] as double));
+    return ranked;
+  }
+
+  Future<void> _manualMatchUnmatchedRow(Map<String, String> row) async {
+    final sheetName = (row['sheet_name'] ?? '').trim();
+    final sheetGov = (row['sheet_governorate'] ?? '').trim();
+    final candidates = _rankOrdersForSheetRow(
+      sheetName: sheetName,
+      sheetGov: sheetGov,
+    ).take(12).toList();
+    if (candidates.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("لا يوجد أوردرات متاحة للمطابقة اليدوية")));
+      return;
+    }
+
+    final initialIdx = int.tryParse(row['candidate_1_index'] ?? '');
+    final selectedIndex = await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        int? selected = initialIdx;
+        return StatefulBuilder(
+          builder: (ctx, setModalState) => AlertDialog(
+            backgroundColor: _dialogBg(context),
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _dialogBorder(context))),
+            title: const Text("مطابقة يدوية للشحنة", textAlign: TextAlign.right),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 360,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text("الاسم: $sheetName", textAlign: TextAlign.right),
+                  Text("المحافظة: $sheetGov", textAlign: TextAlign.right),
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: candidates.length,
+                      itemBuilder: (_, i) {
+                        final candidate = candidates[i];
+                        final order = candidate['order'] as Map<String, String>;
+                        final orderIdx = candidate['index'] as int;
+                        final reason = candidate['reject_reason']?.toString() ?? '';
+                        final accepted = candidate['accepted'] == true;
+                        return RadioListTile<int>(
+                          value: orderIdx,
+                          groupValue: selected,
+                          onChanged: (v) => setModalState(() => selected = v),
+                          title: Text(order['name'] ?? '-', textAlign: TextAlign.right),
+                          subtitle: Text(
+                            "محافظة: ${order['governorate'] ?? '-'}\nموديل/لون: ${order['model'] ?? '-'} / ${order['color'] ?? '-'}\nالحالة: ${accepted ? 'ترشيح قوي' : reason}",
+                            textAlign: TextAlign.right,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("إلغاء")),
+              ElevatedButton(
+                onPressed: selected == null ? null : () => Navigator.pop(ctx, selected),
+                child: const Text("تأكيد المطابقة"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selectedIndex == null) return;
+    await _applyManualSheetMatch(row, selectedIndex);
+  }
+
+  Future<void> _applyManualSheetMatch(Map<String, String> unmatchedRow, int orderIndex) async {
+    if (orderIndex < 0 || orderIndex >= orders.length) return;
+    final order = orders[orderIndex];
+    if (_isOrderClosedForSheetMatch(order)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("الأوردر غير متاح للمطابقة الآن")));
+      return;
+    }
+
+    final counts = _extractModelCountsFromOrder(order);
+    final current15 = _parseIntSafe(count15Controller.text);
+    final current16 = _parseIntSafe(count16Controller.text);
+    final current17 = _parseIntSafe(count17Controller.text);
+
+    setState(() {
+      order['sheet_matched_pending'] = 'true';
+      order['sheet_matched_at'] = DateTime.now().toIso8601String();
+
+      count15Controller.text = (current15 + (counts['15'] ?? 0)).toString();
+      count16Controller.text = (current16 + (counts['16'] ?? 0)).toString();
+      count17Controller.text = (current17 + (counts['17'] ?? 0)).toString();
+
+      _lastSheetUnmatchedRows.removeWhere((r) =>
+          identical(r, unmatchedRow) ||
+          ((r['sheet_name'] ?? '') == (unmatchedRow['sheet_name'] ?? '') &&
+              (r['sheet_governorate'] ?? '') == (unmatchedRow['sheet_governorate'] ?? '') &&
+              (r['sheet_phone'] ?? '') == (unmatchedRow['sheet_phone'] ?? '') &&
+              (r['sheet_amount'] ?? '') == (unmatchedRow['sheet_amount'] ?? '')));
+
+      _lastSheetMatchedRows.insert(0, {
+        'sheet_name': unmatchedRow['sheet_name'] ?? '',
+        'sheet_governorate': unmatchedRow['sheet_governorate'] ?? '',
+        'sheet_phone': unmatchedRow['sheet_phone'] ?? '',
+        'sheet_amount': unmatchedRow['sheet_amount'] ?? '',
+        'order_name': order['name'] ?? '',
+        'order_governorate': order['governorate'] ?? '',
+        'order_model': order['model'] ?? '',
+        'order_color': order['color'] ?? '',
+        'score': 'manual_user_select',
+      });
+      _rebuildCustomersFromOrders();
+    });
+
+    await _saveData();
+    await _addLogEntry(
+      "مطابقة يدوية للشيت",
+      "الشحنة: ${unmatchedRow['sheet_name'] ?? '-'} / ${unmatchedRow['sheet_governorate'] ?? '-'}\nتم ربطها مع: ${order['name'] ?? '-'}",
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تمت المطابقة اليدوية بنجاح")));
+  }
+
   Future<String> _deleteOrderAction(String name, String? governorate) async {
     _pushUndo("حذف أوردر");
     final requested = _normalizeArabicName(name);
@@ -2098,28 +2309,11 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         final targetGov = _normalizeGovernorateForMatch(sheetGov);
         if (targetName.isEmpty) return -1;
 
-        bool governorateMatches(String a, String b) {
-          if (a.isEmpty || b.isEmpty) return true;
-          return a == b || a.contains(b) || b.contains(a);
-        }
-
-        bool hasTwoConsecutiveWords(String a, String b) {
-          final words = a.split(' ').where((w) => w.trim().isNotEmpty).toList();
-          if (words.length < 2) return false;
-          for (int i = 0; i < words.length - 1; i++) {
-            final pair = '${words[i]} ${words[i + 1]}';
-            if (b.contains(pair)) return true;
-          }
-          return false;
-        }
-
         final exactMatches = <int>[];
         for (int oi = 0; oi < orders.length; oi++) {
           if (usedOrderIndices.contains(oi)) continue;
           final order = orders[oi];
-          final status = _normalizeArabicName(order['status'] ?? '');
-          if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
-
+          if (_isOrderClosedForSheetMatch(order)) continue;
           final orderName = _normalizePersonNameForMatch(order['name'] ?? '');
           if (orderName == targetName) exactMatches.add(oi);
         }
@@ -2127,40 +2321,20 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         if (exactMatches.isNotEmpty) {
           for (final oi in exactMatches) {
             final orderGov = _normalizeGovernorateForMatch(orders[oi]['governorate'] ?? '');
-            if (governorateMatches(targetGov, orderGov)) return oi;
+            if (_governorateMatchesForSheet(targetGov, orderGov)) return oi;
           }
           return exactMatches.first;
         }
 
-        int bestIdx = -1;
-        double bestScore = -1.0;
-        for (int oi = 0; oi < orders.length; oi++) {
-          if (usedOrderIndices.contains(oi)) continue;
-          final order = orders[oi];
-          final status = _normalizeArabicName(order['status'] ?? '');
-          if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
-
-          final orderGov = _normalizeGovernorateForMatch(order['governorate'] ?? '');
-          if (!governorateMatches(targetGov, orderGov)) continue;
-
-          final orderName = _normalizePersonNameForMatch(order['name'] ?? '');
-          if (orderName.isEmpty) continue;
-
-          final partial = orderName.contains(targetName) || targetName.contains(orderName);
-          final twoWords = hasTwoConsecutiveWords(targetName, orderName);
-          final score = _nameMatchScore(sheetName, order['name'] ?? '');
-          if (!(partial || twoWords || score >= 0.45)) continue;
-
-          double rank = score;
-          if (partial) rank += 0.35;
-          if (twoWords) rank += 0.25;
-          if (targetGov.isNotEmpty && orderGov == targetGov) rank += 0.15;
-          if (rank > bestScore) {
-            bestScore = rank;
-            bestIdx = oi;
-          }
+        final ranked = _rankOrdersForSheetRow(
+          sheetName: sheetName,
+          sheetGov: sheetGov,
+          excludedOrderIndices: usedOrderIndices,
+        );
+        for (final c in ranked) {
+          if (c['accepted'] == true) return c['index'] as int;
         }
-        return bestIdx;
+        return -1;
       }
 
       for (int i = 1; i < rows.length; i++) {
@@ -2212,13 +2386,45 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           auto17 += countsByModel['17'] ?? 0;
         } else {
           unmatchedDelivered++;
-          unmatchedRows.add({
+          final ranked = _rankOrdersForSheetRow(
+            sheetName: sheetName,
+            sheetGov: sheetGov,
+            excludedOrderIndices: usedOrderIndices,
+          );
+          final top3 = ranked.take(3).toList();
+          for (int ci = 0; ci < top3.length; ci++) {
+            final cand = top3[ci];
+            final candOrder = cand['order'] as Map<String, String>;
+            debugPrint(
+              'UNMATCHED_DEBUG row=[$sheetName][$sheetGov] cand#${ci + 1}: '
+              '${candOrder['name'] ?? '-'} | ${candOrder['governorate'] ?? '-'} | '
+              'score=${(cand['name_score'] as double).toStringAsFixed(2)} '
+              'accepted=${cand['accepted']} reason=${cand['reject_reason']}',
+            );
+          }
+
+          final rowData = <String, String>{
             'sheet_name': sheetName,
             'sheet_governorate': sheetGov,
             'sheet_phone': sheetPhone,
             'sheet_amount': amount.toStringAsFixed(0),
             'reason': 'manual_select_needed (name_governorate_only)',
-          });
+          };
+
+          for (int ci = 0; ci < top3.length; ci++) {
+            final cand = top3[ci];
+            final candOrder = cand['order'] as Map<String, String>;
+            final prefix = 'candidate_${ci + 1}_';
+            rowData['${prefix}index'] = (cand['index'] as int).toString();
+            rowData['${prefix}name'] = candOrder['name'] ?? '';
+            rowData['${prefix}governorate'] = candOrder['governorate'] ?? '';
+            rowData['${prefix}model'] = candOrder['model'] ?? '';
+            rowData['${prefix}color'] = candOrder['color'] ?? '';
+            rowData['${prefix}name_score'] = ((cand['name_score'] as double)).toStringAsFixed(2);
+            rowData['${prefix}reason'] = cand['reject_reason']?.toString() ?? '';
+          }
+
+          unmatchedRows.add(rowData);
         }
       }
 
@@ -2435,6 +2641,22 @@ void _showResultDialog(int count, double ded, double net, int a15, int a16, int 
               ] else ...[
                 const SizedBox(height: 4),
                 Text("السبب: ${r['reason'] ?? 'غير محدد'}", textAlign: TextAlign.right),
+                for (int ci = 1; ci <= 3; ci++)
+                  if ((r['candidate_${ci}_name'] ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text("مرشح $ci: ${r['candidate_${ci}_name']} | ${r['candidate_${ci}_governorate'] ?? '-'}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text("موديل/لون: ${(r['candidate_${ci}_model'] ?? '-')} / ${(r['candidate_${ci}_color'] ?? '-')}", textAlign: TextAlign.right),
+                    Text("سبب الرفض: ${(r['candidate_${ci}_reason'] ?? '-')}, score=${r['candidate_${ci}_name_score'] ?? '-'}", textAlign: TextAlign.right),
+                  ],
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _manualMatchUnmatchedRow(r),
+                    icon: const Icon(Icons.link_rounded, size: 18),
+                    label: const Text("مطابقة يدوية"),
+                  ),
+                ),
                 if (((r['inferred_15'] ?? '0') != '0') || ((r['inferred_16'] ?? '0') != '0') || ((r['inferred_17'] ?? '0') != '0'))
                   Text("تقدير الأجهزة: 15=${r['inferred_15'] ?? '0'}، 16=${r['inferred_16'] ?? '0'}، 17=${r['inferred_17'] ?? '0'}", textAlign: TextAlign.right),
               ],
