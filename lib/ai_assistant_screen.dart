@@ -1,13 +1,17 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'config.dart';
 
-typedef DeleteOrderCallback = Future<String> Function(String name, String? governorate);
-typedef CancelOrderCallback = Future<String> Function(String name, String? governorate);
-typedef AddStockCallback = Future<String> Function(String model, String color, int count);
+typedef DeleteOrderCallback =
+    Future<String> Function(String name, String? governorate);
+typedef CancelOrderCallback =
+    Future<String> Function(String name, String? governorate);
+typedef AddStockCallback =
+    Future<String> Function(String model, String color, int count);
 typedef CheckStockCallback = Future<String> Function();
-typedef BulkImportCallback = Future<String> Function(List<Map<String, dynamic>> orders);
+typedef BulkImportCallback =
+    Future<String> Function(List<Map<String, dynamic>> orders);
 
 class AIAssistantScreen extends StatefulWidget {
   const AIAssistantScreen({
@@ -35,7 +39,8 @@ class AIAssistantScreen extends StatefulWidget {
 
 class _AIAssistantScreenState extends State<AIAssistantScreen> {
   final TextEditingController _controller = TextEditingController(); // commands
-  final TextEditingController _bulkController = TextEditingController(); // whatsapp bulk
+  final TextEditingController _bulkController =
+      TextEditingController(); // whatsapp bulk
   final List<_Message> _messages = [];
   bool _sending = false;
   bool _testing = false;
@@ -83,7 +88,8 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       setState(() {
         _messages.add(
           const _Message(
-            text: '❌ حصلت مشكلة في الاتصال بالسيرفر. اتأكد من تشغيل سيرفر Render.',
+            text:
+                '❌ حصلت مشكلة في الاتصال بالسيرفر. اتأكد من تشغيل سيرفر Render.',
             isUser: false,
           ),
         );
@@ -105,7 +111,12 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
         if (decoded is Map && decoded['ok'] == true) {
           if (!mounted) return;
           setState(() {
-            _messages.add(const _Message(text: '✅ الاتصال بالسيرفر شغال (/health)', isUser: false));
+            _messages.add(
+              const _Message(
+                text: '✅ الاتصال بالسيرفر شغال (/health)',
+                isUser: false,
+              ),
+            );
           });
           return;
         }
@@ -120,7 +131,10 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       if (!mounted) return;
       setState(() {
         _messages.add(
-          const _Message(text: '❌ السيرفر غير متاح، اتأكد من تشغيل سيرفر Render', isUser: false),
+          const _Message(
+            text: '❌ السيرفر غير متاح، اتأكد من تشغيل سيرفر Render',
+            isUser: false,
+          ),
         );
       });
     } finally {
@@ -133,7 +147,12 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     if (text.isEmpty || _bulkSending) return;
 
     setState(() {
-      _messages.add(_Message(text: '📥 استيراد أوردرات واتساب (${text.length} حرف)', isUser: true));
+      _messages.add(
+        _Message(
+          text: '📥 استيراد أوردرات واتساب (${text.length} حرف)',
+          isUser: true,
+        ),
+      );
       _bulkSending = true;
     });
 
@@ -148,8 +167,17 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
           .timeout(const Duration(seconds: 60));
 
       if (response.statusCode != 200) {
-        if (response.statusCode == 404 && response.body.contains('Cannot POST /ai/parse_orders')) {
-          throw Exception('السيرفر على Render لسه مش محدث (endpoint /ai/parse_orders مش موجود). اعمل Deploy لآخر كود السيرفر.');
+        if (response.statusCode == 503 &&
+            response.body.contains('AI_PARSE_UNAVAILABLE')) {
+          throw Exception(
+            'الذكاء الاصطناعي في السيرفر غير متاح الآن (Gemini). راجع Render Logs وتأكد من GEMINI_API_KEY.',
+          );
+        }
+        if (response.statusCode == 404 &&
+            response.body.contains('Cannot POST /ai/parse_orders')) {
+          throw Exception(
+            'السيرفر على Render لسه مش محدث (endpoint /ai/parse_orders مش موجود). اعمل Deploy لآخر كود السيرفر.',
+          );
         }
         throw Exception('HTTP ${response.statusCode}: ${response.body}');
       }
@@ -159,10 +187,20 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
         throw Exception('Invalid response format (expected array)');
       }
 
-      final orders = decoded.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      final orders = decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
       if (orders.isEmpty) {
         if (!mounted) return;
-        setState(() => _messages.add(const _Message(text: 'لم يتم العثور على أوردرات في النص.', isUser: false)));
+        setState(
+          () => _messages.add(
+            const _Message(
+              text: 'لم يتم العثور على أوردرات في النص.',
+              isUser: false,
+            ),
+          ),
+        );
         return;
       }
 
@@ -176,10 +214,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       if (!mounted) return;
       setState(() {
         _messages.add(
-          _Message(
-            text: '❌ فشل استيراد الأوردرات.\n$e',
-            isUser: false,
-          ),
+          _Message(text: '❌ فشل استيراد الأوردرات.\n$e', isUser: false),
         );
       });
     } finally {
@@ -239,13 +274,18 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
               margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFE5E7EB),
+                color: isDark
+                    ? const Color(0xFF1C1C1E)
+                    : const Color(0xFFE5E7EB),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 'Base URL: ${widget.baseUrl}',
                 textAlign: TextAlign.left,
-                style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 12),
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : Colors.black87,
+                  fontSize: 12,
+                ),
               ),
             ),
             Padding(
@@ -277,23 +317,38 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
                           itemCount: _messages.length,
                           itemBuilder: (context, index) {
                             final msg = _messages[index];
-                            final alignment = msg.isUser ? Alignment.centerRight : Alignment.centerLeft;
+                            final alignment = msg.isUser
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft;
                             final bg = msg.isUser
                                 ? const Color(0xFF0A84FF)
-                                : (isDark ? const Color(0xFF1C1C1E) : const Color(0xFFE5E7EB));
-                            final fg = msg.isUser ? Colors.white : (isDark ? Colors.white : Colors.black87);
+                                : (isDark
+                                      ? const Color(0xFF1C1C1E)
+                                      : const Color(0xFFE5E7EB));
+                            final fg = msg.isUser
+                                ? Colors.white
+                                : (isDark ? Colors.white : Colors.black87);
 
                             return Align(
                               alignment: alignment,
                               child: Container(
                                 margin: const EdgeInsets.symmetric(vertical: 4),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                constraints: BoxConstraints(
+                                  maxWidth:
+                                      MediaQuery.of(context).size.width * 0.85,
+                                ),
                                 decoration: BoxDecoration(
                                   color: bg,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: Text(msg.text, style: TextStyle(color: fg)),
+                                child: Text(
+                                  msg.text,
+                                  style: TextStyle(color: fg),
+                                ),
                               ),
                             );
                           },
@@ -323,7 +378,9 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
                                     ? const SizedBox(
                                         width: 16,
                                         height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       )
                                     : const Icon(Icons.send),
                               ),
@@ -348,7 +405,8 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
                               expands: true,
                               textAlign: TextAlign.right,
                               decoration: const InputDecoration(
-                                hintText: 'الصق أوردرات الواتساب هنا...\nثم اضغط "تحليل واستيراد"',
+                                hintText:
+                                    'الصق أوردرات الواتساب هنا...\nثم اضغط "تحليل واستيراد"',
                                 border: OutlineInputBorder(),
                               ),
                             ),
@@ -372,9 +430,17 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
                               Expanded(
                                 flex: 2,
                                 child: FilledButton.icon(
-                                  onPressed: _bulkSending ? null : _sendBulkImport,
+                                  onPressed: _bulkSending
+                                      ? null
+                                      : _sendBulkImport,
                                   icon: _bulkSending
-                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
                                       : const Icon(Icons.auto_awesome),
                                   label: const Text('تحليل واستيراد'),
                                 ),
@@ -401,7 +467,3 @@ class _Message {
   final String text;
   final bool isUser;
 }
-
-
-
-

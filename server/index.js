@@ -694,6 +694,7 @@ function setCachedParse(text, value) {
 app.post("/ai/parse_orders", async (req, res) => {
   try {
     const text = String(req.body?.text || "").trim();
+    const strictAi = req.body?.strict_ai !== false;
     if (!text) {
       return res.status(400).json({ error: "text is required" });
     }
@@ -703,7 +704,8 @@ app.post("/ai/parse_orders", async (req, res) => {
     const blocks = splitWhatsAppBlocks(text);
     const ruleParsedByBlock = blocks.map(parseWhatsAppBlockRuleBased);
 
-    // If we have Gemini configured, let it do extraction; otherwise fallback to rule-based parsing.
+    // AI-first parsing (strict by default). If AI is unavailable, return clear error instead of silent fallback.
+    let aiFailureReason = "";
     try {
       const prompt = `
 You extract iPhone order data from Egyptian Arabic WhatsApp messages.
@@ -750,17 +752,30 @@ ${JSON.stringify(blocks.map((b, i) => ({ source_index: i, text: b })))}
           .sort((a, b) => a.source_index - b.source_index)
           .map((x) => x.order)
           .filter((o) => o.name || o.phone || o.address);
+        res.set("x-parse-mode", "ai");
         setCachedParse(text, normalized);
         return res.json(normalized);
       }
+      aiFailureReason = "ai_empty_or_invalid_json";
     } catch (aiError) {
-      console.log("Gemini parse_orders fallback to rule-based:", aiError?.message || aiError);
+      aiFailureReason = aiError?.message || String(aiError || "ai_error");
+      console.log("Gemini parse_orders error:", aiFailureReason);
     }
 
     const ruleParsed = ruleParsedByBlock
       .map(normalizeParsedOrder)
       .filter((o) => o.name || o.phone || o.address);
 
+    if (strictAi) {
+      return res.status(503).json({
+        error: "AI_PARSE_UNAVAILABLE",
+        message: "Gemini parse_orders failed; rule fallback disabled in strict mode",
+        details: aiFailureReason,
+        fallback_preview_count: ruleParsed.length,
+      });
+    }
+
+    res.set("x-parse-mode", "rule");
     setCachedParse(text, ruleParsed);
     return res.json(ruleParsed);
   } catch (error) {
