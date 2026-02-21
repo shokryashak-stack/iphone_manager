@@ -164,7 +164,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'text': text}),
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(const Duration(seconds: 35));
 
       if (response.statusCode != 200) {
         if (response.statusCode == 503 &&

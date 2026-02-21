@@ -79,14 +79,14 @@ class _OrderReviewPageState extends State<OrderReviewPage> {
   String _normalizeColorNameAny(String colorRaw) {
     final c = _normalizeArabic(colorRaw);
     if (c.isEmpty) return '';
-    if (c.contains('سلفر') || c.contains('سيلفر') || c.contains('فضي') || c.contains('فضه') || c.contains('ابيض') || c.contains('أبيض') || c.contains('silver') || c.contains('white')) return 'سلفر';
+    if (c.contains('سلفر') || c.contains('سيلفر') || c.contains('سيلڤر') || c.contains('فضي') || c.contains('فضه') || c.contains('ابيض') || c.contains('أبيض') || c.contains('silver') || c.contains('white')) return 'سلفر';
     if (c.contains('اسود') || c.contains('أسود') || c.contains('بلاك') || c.contains('black')) return 'اسود';
-    if (c.contains('ازرق') || c.contains('أزرق') || c.contains('blue')) return 'ازرق';
+    if (c.contains('ازرق') || c.contains('أزرق') || c.contains('بلو') || c.contains('blue')) return 'ازرق';
     if (c.contains('دهبي') || c.contains('ذهبي') || c.contains('جولد') || c.contains('gold')) return 'دهبي';
-    if (c.contains('برتقالي') || c.contains('اورنج') || c.contains('اورانج') || c.contains('أورنج') || c.contains('orange')) return 'برتقالي';
-    if (c.contains('كحلي') || c.contains('كحلى') || c.contains('navy')) return 'كحلي';
+    if (c.contains('برتقالي') || c.contains('برتقاني') || c.contains('اورنج') || c.contains('اورانج') || c.contains('أورنج') || c.contains('أورانج') || c.contains('orange')) return 'برتقالي';
+    if (c.contains('كحلي') || c.contains('كحلى') || c.contains('نيلي') || c.contains('navy')) return 'كحلي';
     if (c.contains('تيتانيوم') || c.contains('طبيعي') || c.contains('ناتشورال') || c.contains('natural')) return 'تيتانيوم';
-    return colorRaw.trim();
+    return '';
   }
 
   String _normalizeColorForModel(String modelKey, String colorRaw) {

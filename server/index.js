@@ -7,11 +7,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
 const GEMINI_MODELS = [
-  "gemini-2.5-flash",
   "gemini-2.0-flash",
+  "gemini-2.5-flash",
   "gemini-1.5-flash-latest",
-  "gemini-1.5-flash-8b",
-  "gemini-1.5-pro-latest",
+  "gemini-1.5-flash-8b"
 ];
 
 app.use(
@@ -314,20 +313,24 @@ function extractNormalizedModels(textRaw, count) {
 function normalizeColorNameAny(colorRaw) {
   const s = normalizeSpaces(stripDiacritics(String(colorRaw || ""))).toLowerCase();
   if (!s) return "";
-  if (s.includes("ط·آ³ط¸â€‍ط¸ظ¾ط·آ±") || s.includes("ط·آ³ط¸ظ¹ط¸â€‍ط¸ظ¾ط·آ±") || s.includes("ط¸ظ¾ط·آ¶ط¸ظ¹") || s.includes("ط¸ظ¾ط·آ¶ط¸â€،") || s.includes("silver") || s.includes("ط·آ§ط·آ¨ط¸ظ¹ط·آ¶") || s.includes("ط·آ£ط·آ¨ط¸ظ¹ط·آ¶") || s.includes("white")) return "ط·آ³ط¸â€‍ط¸ظ¾ط·آ±";
-  if (s.includes("ط·آ§ط·آ³ط¸ث†ط·آ¯") || s.includes("ط·آ£ط·آ³ط¸ث†ط·آ¯") || s.includes("ط·آ¨ط¸â€‍ط·آ§ط¸ئ’") || s.includes("black")) return "ط·آ§ط·آ³ط¸ث†ط·آ¯";
-  if (s.includes("ط·آ§ط·آ²ط·آ±ط¸â€ڑ") || s.includes("ط·آ£ط·آ²ط·آ±ط¸â€ڑ") || s.includes("blue")) return "ط·آ§ط·آ²ط·آ±ط¸â€ڑ";
-  if (s.includes("ط·آ¯ط¸â€،ط·آ¨ط¸ظ¹") || s.includes("ط·آ°ط¸â€،ط·آ¨ط¸ظ¹") || s.includes("ط·آ¬ط¸ث†ط¸â€‍ط·آ¯") || s.includes("gold")) return "ط·آ¯ط¸â€،ط·آ¨ط¸ظ¹";
-  if (s.includes("ط·آ¨ط·آ±ط·ع¾ط¸â€ڑط·آ§ط¸â€‍ط¸ظ¹") || s.includes("ط·آ§ط¸ث†ط·آ±ط¸â€ ط·آ¬") || s.includes("ط·آ§ط¸ث†ط·آ±ط·آ§ط¸â€ ط·آ¬") || s.includes("ط·آ£ط¸ث†ط·آ±ط¸â€ ط·آ¬") || s.includes("orange")) return "ط·آ¨ط·آ±ط·ع¾ط¸â€ڑط·آ§ط¸â€‍ط¸ظ¹";
-  if (s.includes("ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹") || s.includes("navy")) return "ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹";
-  if (s.includes("ط·ع¾ط¸ظ¹ط·ع¾ط·آ§ط¸â€ ط¸ظ¹ط¸ث†ط¸â€¦") || s.includes("ط·آ·ط·آ¨ط¸ظ¹ط·آ¹ط¸ظ¹") || s.includes("ط¸â€ ط·آ§ط·ع¾ط·آ´ط¸ث†ط·آ±ط·آ§ط¸â€‍") || s.includes("natural")) return "ط·ع¾ط¸ظ¹ط·ع¾ط·آ§ط¸â€ ط¸ظ¹ط¸ث†ط¸â€¦";
+
+  const has = (...tokens) => tokens.some((token) => token && s.includes(token));
+
+  if (has("سلفر", "سيلفر", "فضي", "فضى", "ابيض", "أبيض", "silver", "white", "ط·آ³ط¸â€‍ط¸ظ¾ط·آ±", "ط¸ظ¾ط·آ¶ط¸ظ¹")) return "سلفر";
+  if (has("اسود", "أسود", "black", "ط·آ§ط·آ³ط¸ث†ط·آ¯")) return "اسود";
+  if (has("دهبي", "ذهبي", "gold", "golden", "ط·آ¯ط¸â€،ط·آ¨ط¸ظ¹")) return "دهبي";
+  if (has("برتقالي", "برتقاني", "اورنج", "أورنج", "اورانج", "أورانج", "orange", "ط·آ¨ط·آ±ط·ع¾ط¸â€ڑط·آ§ط¸â€‍ط¸ظ¹")) return "برتقالي";
+  if (has("كحلي", "كحلى", "navy", "dark blue", "ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹")) return "كحلي";
+  if (has("تيتانيوم", "تيتاني", "natural", "natural titanium", "ط·ع¾ط¸ظ¹ط·ع¾ط·آ§ط¸â€ ط¸ظ¹ط¸ث†ط¸â€¦")) return "تيتانيوم";
+  if (has("ازرق", "أزرق", "blue", "ط·آ§ط·آ²ط·آ±ط¸â€ڑ")) return "ازرق";
+
   return "";
 }
 
 const STOCK_COLORS_BY_MODEL = {
-  "15 Pro Max": ["ط·آ³ط¸â€‍ط¸ظ¾ط·آ±", "ط·آ§ط·آ³ط¸ث†ط·آ¯", "ط·آ§ط·آ²ط·آ±ط¸â€ڑ"],
-  "16 Pro Max": ["ط·آ³ط¸â€‍ط¸ظ¾ط·آ±", "ط·آ¯ط¸â€،ط·آ¨ط¸ظ¹", "ط·آ§ط·آ³ط¸ث†ط·آ¯"],
-  "17 Pro Max": ["ط·آ¨ط·آ±ط·ع¾ط¸â€ڑط·آ§ط¸â€‍ط¸ظ¹", "ط·آ³ط¸â€‍ط¸ظ¾ط·آ±", "ط·آ§ط·آ³ط¸ث†ط·آ¯", "ط·آ¯ط¸â€،ط·آ¨ط¸ظ¹", "ط·ع¾ط¸ظ¹ط·ع¾ط·آ§ط¸â€ ط¸ظ¹ط¸ث†ط¸â€¦", "ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹"],
+  "15 Pro Max": ["سلفر", "اسود", "ازرق"],
+  "16 Pro Max": ["سلفر", "دهبي", "اسود"],
+  "17 Pro Max": ["برتقالي", "سلفر", "اسود", "دهبي", "تيتانيوم", "كحلي", "ازرق"],
 };
 
 function normalizeColorForModel(modelKey, colorRaw) {
@@ -335,8 +338,8 @@ function normalizeColorForModel(modelKey, colorRaw) {
   if (!normalized) return "";
   const allowed = STOCK_COLORS_BY_MODEL[modelKey] || [];
   if (allowed.includes(normalized)) return normalized;
-  if (normalized === "ط·آ§ط·آ²ط·آ±ط¸â€ڑ" && allowed.includes("ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹")) return "ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹";
-  if (normalized === "ط¸ئ’ط·آ­ط¸â€‍ط¸ظ¹" && allowed.includes("ط·آ§ط·آ²ط·آ±ط¸â€ڑ")) return "ط·آ§ط·آ²ط·آ±ط¸â€ڑ";
+  if (normalized === "ازرق" && allowed.includes("كحلي")) return "كحلي";
+  if (normalized === "كحلي" && allowed.includes("ازرق")) return "ازرق";
   return normalized;
 }
 
@@ -348,16 +351,16 @@ function extractNormalizedColors(textRaw) {
     if (!colors.includes(c)) colors.push(c);
   };
 
-  // Try to focus on "ط¸â€‍ط¸ث†ط¸â€ " section first (often contains multiple colors)
-  const m = text.match(/(?:ط¸â€‍ط¸ث†ط¸â€ |ط·آ§ط¸â€‍ط¸â€‍ط¸ث†ط¸â€ )\s*[:\/]?\s*([^\n]+)/i);
+  // Try to focus on "لون/الوان" section first (often contains multiple colors)
+  const m = text.match(/(?:الوان|ألوان|اللون|لون)\s*[:\/]?\s*([^\n]+)/i);
   if (m && m[1]) {
     const seg = normalizeSpaces(m[1]);
-    for (const part of seg.split(/[\u060C,|/]|(?:\s+ط¸ث†\s+)|(?:\s*&\s*)/).map((x) => x.trim()).filter(Boolean)) {
+    for (const part of seg.split(/[\u060C,|/]|(?:\s+و\s+)|(?:\s*&\s*)/).map((x) => x.trim()).filter(Boolean)) {
       push(normalizeColorNameAny(part));
     }
   }
 
-  // Also scan lines for standalone colors (e.g. "ط¸ث†ط·آ³ط¸ظ¹ط¸â€‍ط¸ظ¾ط·آ±" on next line)
+  // Also scan lines for standalone colors (e.g. "لون /اسود" on next line)
   const lines = text.split("\n").map((l) => normalizeSpaces(l)).filter(Boolean);
   for (const line of lines) {
     // If line is short and contains a color word, capture it.
@@ -715,16 +718,16 @@ Preserve input order and include source_index (0-based) for every order.
 
 Normalization:
 - model in {"15 Pro Max","16 Pro Max","17 Pro Max"}
-- color in {"ط³ظ„ظپط±","ط§ط³ظˆط¯","ط§ط²ط±ظ‚","ط¯ظ‡ط¨ظٹ","ط¨ط±طھظ‚ط§ظ„ظٹ","ظƒط­ظ„ظٹ","طھظٹطھط§ظ†ظٹظˆظ…"}
+- color in {"سلفر","اسود","ازرق","دهبي","برتقالي","كحلي","تيتانيوم"}
 - count integer >= 1
 - phone Egyptian mobile 11 digits starts with 01
 - cod_total = price - discount + shipping
 - If multi-device: set models[] and colors[] (length <= count)
 
 Synonyms:
-- ط§ظˆط±ظ†ط¬/ط§ظˆط±ط§ظ†ط¬ => ط¨ط±طھظ‚ط§ظ„ظٹ
-- ظپط¶ظٹ/ط³ظٹظ„ظپط±/ط§ط¨ظٹط¶ => ط³ظ„ظپط±
-- ط§ط²ط±ظ‚/ظƒط­ظ„ظٹ same family (choose valid model color)
+- اورنج/اورانج/برتقاني => برتقالي
+- فضي/سيلفر/ابيض => سلفر
+- ازرق/كحلي same family (choose valid model color)
 
 Governorate:
 - Use governorate only (ط§ظ„ظ‚ط§ظ‡ط±ط©/ط§ظ„ط¬ظٹط²ط©/ط§ظ„ظ‚ظ„ظٹظˆط¨ظٹط©...) not district.

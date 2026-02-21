@@ -481,14 +481,14 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   String _normalizeColorNameAny(String colorRaw) {
     final c = _normalizeArabicName(colorRaw);
     if (c.isEmpty) return '';
-    if (c.contains('سلفر') || c.contains('سيلفر') || c.contains('فضي') || c.contains('فضه') || c.contains('ابيض') || c.contains('أبيض') || c.contains('silver') || c.contains('white')) return 'سلفر';
+    if (c.contains('سلفر') || c.contains('سيلفر') || c.contains('سيلڤر') || c.contains('فضي') || c.contains('فضه') || c.contains('ابيض') || c.contains('أبيض') || c.contains('silver') || c.contains('white')) return 'سلفر';
     if (c.contains('اسود') || c.contains('أسود') || c.contains('بلاك') || c.contains('black')) return 'اسود';
-    if (c.contains('ازرق') || c.contains('أزرق') || c.contains('blue')) return 'ازرق';
+    if (c.contains('ازرق') || c.contains('أزرق') || c.contains('بلو') || c.contains('blue')) return 'ازرق';
     if (c.contains('دهبي') || c.contains('ذهبي') || c.contains('جولد') || c.contains('gold')) return 'دهبي';
-    if (c.contains('برتقالي') || c.contains('اورنج') || c.contains('اورانج') || c.contains('أورنج') || c.contains('orange')) return 'برتقالي';
-    if (c.contains('كحلي') || c.contains('كحلى') || c.contains('navy')) return 'كحلي';
+    if (c.contains('برتقالي') || c.contains('برتقاني') || c.contains('اورنج') || c.contains('اورانج') || c.contains('أورنج') || c.contains('أورانج') || c.contains('orange')) return 'برتقالي';
+    if (c.contains('كحلي') || c.contains('كحلى') || c.contains('نيلي') || c.contains('navy')) return 'كحلي';
     if (c.contains('تيتانيوم') || c.contains('طبيعي') || c.contains('ناتشورال') || c.contains('natural')) return 'تيتانيوم';
-    return colorRaw.trim();
+    return '';
   }
 
   String _normalizeColorForModel(String modelKey, String colorRaw) {
@@ -1060,7 +1060,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'text': rawText}),
           )
-          .timeout(const Duration(seconds: 45));
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode != 200) {
         print('AI parse_orders HTTP ${response.statusCode}: ${response.body}');
@@ -1070,33 +1070,48 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       final decoded = jsonDecode(response.body);
       if (decoded is! List) return null;
 
-      return decoded.whereType<Map>().map((e) {
-        final phones = (e['phones'] is List)
-            ? (e['phones'] as List).map((x) => s(x)).where((x) => x.isNotEmpty).toList()
-            : <String>[];
+      return decoded
+          .whereType<Map>()
+          .map((e) => _dynamicOrderToStringMap(Map<String, dynamic>.from(e)))
+          .map((o) {
+            final model = (o['model'] ?? '').trim();
+            final baseColor = (o['color'] ?? '').trim();
+            final normalizedBaseColor = model.isNotEmpty
+                ? _normalizeColorForModel(model, baseColor)
+                : _normalizeColorNameAny(baseColor);
+            if (normalizedBaseColor.isNotEmpty) {
+              o['color'] = normalizedBaseColor;
+            }
 
-        final createdAt = s(e['created_at']).isNotEmpty ? s(e['created_at']) : DateTime.now().toIso8601String();
-        final status = s(e['status']).isNotEmpty ? s(e['status']) : 'shipped';
+            final models = (o['models'] ?? '')
+                .split('|')
+                .map((x) => x.trim())
+                .where((x) => x.isNotEmpty)
+                .toList();
+            if (models.isNotEmpty) {
+              o['models'] = models.join('|');
+            }
 
-        final phone = s(e['phone']).isNotEmpty ? s(e['phone']) : (phones.isNotEmpty ? phones.first : '');
-
-        return <String, String>{
-          'name': s(e['name']),
-          'governorate': s(e['governorate']),
-          'phone': phone,
-          if (phones.length > 1) 'phones': phones.join(','),
-          'address': s(e['address']),
-          'model': s(e['model']),
-          'color': s(e['color']),
-          'price': s(e['price']),
-          'shipping': s(e['shipping']).isNotEmpty ? s(e['shipping']) : '0',
-          'discount': s(e['discount']).isNotEmpty ? s(e['discount']) : '0',
-          'cod_total': s(e['cod_total']),
-          'notes': s(e['notes']),
-          'status': status,
-          'created_at': createdAt,
-        };
-      }).toList();
+            final colors = (o['colors'] ?? '')
+                .split('|')
+                .map((x) => x.trim())
+                .where((x) => x.isNotEmpty)
+                .toList();
+            if (colors.isNotEmpty) {
+              final mapped = List<String>.generate(colors.length, (i) {
+                final m = (i < models.length && models[i].isNotEmpty) ? models[i] : model;
+                return m.isNotEmpty ? _normalizeColorForModel(m, colors[i]) : _normalizeColorNameAny(colors[i]);
+              }).where((x) => x.isNotEmpty).toList();
+              if (mapped.isNotEmpty) {
+                o['colors'] = mapped.join('|');
+                if ((o['color'] ?? '').trim().isEmpty) {
+                  o['color'] = mapped.first;
+                }
+              }
+            }
+            return o;
+          })
+          .toList();
     } catch (e) {
       print('Server AI parse_orders error: $e');
       return null;
@@ -1238,16 +1253,22 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
     final phone = s(e['phone']).isNotEmpty ? s(e['phone']) : (phones.isNotEmpty ? phones.first : '');
 
+    final model = _normalizeModelNameAny(s(e['model']));
+    final colorsFromArray = colors.map((x) => _normalizeColorNameAny(x)).where((x) => x.isNotEmpty).toList();
+    final modelsFromArray = models.map(_normalizeModelNameAny).where((x) => x.isNotEmpty).toList();
+    final colorRaw = s(e['color']);
+    final color = model.isNotEmpty ? _normalizeColorForModel(model, colorRaw) : _normalizeColorNameAny(colorRaw);
+
     return <String, String>{
       'name': s(e['name']),
       'governorate': s(e['governorate']),
       'phone': phone,
       if (phones.length > 1) 'phones': phones.join(','),
       'address': s(e['address']),
-      'model': s(e['model']),
-      if (models.isNotEmpty) 'models': models.join('|'),
-      'color': s(e['color']),
-      if (colors.isNotEmpty) 'colors': colors.join('|'),
+      'model': model,
+      if (modelsFromArray.isNotEmpty) 'models': modelsFromArray.join('|'),
+      'color': color,
+      if (colorsFromArray.isNotEmpty) 'colors': colorsFromArray.join('|'),
       'count': s(e['count']).isNotEmpty ? s(e['count']) : '1',
       'price': s(e['price']),
       'shipping': s(e['shipping']).isNotEmpty ? s(e['shipping']) : '0',
