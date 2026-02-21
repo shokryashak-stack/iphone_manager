@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -1789,34 +1789,6 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     return out;
   }
 
-  Map<String, int> _inferCountsFromSheetAmount(double amount) {
-    final out = <String, int>{'15': 0, '16': 0, '17': 0};
-    if (amount <= 0) return out;
-
-    final prices = <String, double>{'15': 5500, '16': 6000, '17': 6500};
-    double bestDiff = 1e18;
-    String bestModel = '';
-    int bestCount = 1;
-
-    for (int count = 1; count <= 4; count++) {
-      prices.forEach((model, price) {
-        final expected = price * count;
-        final diff = (amount - expected).abs();
-        final tolerance = count == 1 ? 900.0 : (count * 300.0);
-        if (diff <= tolerance && diff < bestDiff) {
-          bestDiff = diff;
-          bestModel = model;
-          bestCount = count;
-        }
-      });
-    }
-
-    if (bestModel.isNotEmpty) {
-      out[bestModel] = bestCount;
-    }
-    return out;
-  }
-
   int _parseIntSafe(String v) => int.tryParse(_toWesternDigits(v).replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
   Future<String> _deleteOrderAction(String name, String? governorate) async {
@@ -1988,7 +1960,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     await _saveData();
   }
 
-  Future<void> _importJAndTSheet() async {
+    Future<void> _importJAndTSheet() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'xls', 'csv'],
@@ -2022,7 +1994,6 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           if (headerRow.any((h) => h.contains('cod amount'))) score += 6;
           if (headerRow.any((h) => h.contains('cod service fee'))) score += 6;
           if (headerRow.any((h) => h.contains('total freight') || h.contains('shipping'))) score += 5;
-          if (headerRow.any((h) => h.contains('signing status'))) score += 3;
           score += sheetRows.length ~/ 20;
 
           if (score > bestScore) {
@@ -2100,13 +2071,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         ['receiver mobile', 'receiver phone', 'consignee mobile', 'consignee phone', 'mobile', 'phone', 'رقم الهاتف', 'تليفون'],
         ['receiver', 'consignee', 'mobile', 'phone', 'هاتف', 'تليفون'],
       );
-      final int signingStatusIndex = findHeaderExactPriority(
-        ['signing status', 'sign status', 'delivery status', 'حالة التسليم'],
-        ['sign', 'status', 'delivery'],
-      );
 
-      if (amountIndex == -1 || feeIndex == -1) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("مش لاقي أعمدة COD Amount / COD Service Fee")));
+      if (feeIndex == -1) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("مش لاقي عمود COD Service Fee")));
         return;
       }
 
@@ -2120,353 +2087,132 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       int auto15 = 0;
       int auto16 = 0;
       int auto17 = 0;
-      int cashDeliveredCount = 0;
-      const manualTransferCodMax = 1.5;
       final usedOrderIndices = <int>{};
       int matchedDelivered = 0;
       int unmatchedDelivered = 0;
       final matchedRows = <Map<String, String>>[];
       final unmatchedRows = <Map<String, String>>[];
 
-      for (int i = 1; i < rows.length; i++) {
-        var row = rows[i];
-        if (row.isNotEmpty) {
-          dynamic cellAt(int idx) => (idx >= 0 && idx < row.length) ? row[idx] : null;
+      int findBestOrderIndex(String sheetName, String sheetGov) {
+        final targetName = _normalizePersonNameForMatch(sheetName);
+        final targetGov = _normalizeGovernorateForMatch(sheetGov);
+        if (targetName.isEmpty) return -1;
 
-          double amount = _toDoubleSafe(cellAt(amountIndex));
-          double fee = _toDoubleSafe(cellAt(feeIndex));
-          double shipping = shippingIndex != -1 ? _toDoubleSafe(cellAt(shippingIndex)) : 0.0;
-          final signingStatus = signingStatusIndex != -1 ? _normalizeArabicName((cellAt(signingStatusIndex)?.toString() ?? '').trim()) : '';
+        final exactMatches = <int>[];
+        for (int oi = 0; oi < orders.length; oi++) {
+          if (usedOrderIndices.contains(oi)) continue;
+          final order = orders[oi];
+          final status = _normalizeArabicName(order['status'] ?? '');
+          if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
 
-          if (shipping > 0) totalShipping += shipping;
+          final orderName = _normalizePersonNameForMatch(order['name'] ?? '');
+          if (orderName == targetName) exactMatches.add(oi);
+        }
 
-          final isExternalTransfer = amount > 0 && amount <= manualTransferCodMax;
-          final deliveredByStatus = signingStatus.contains('success sign') ||
-              signingStatus.contains('signed') ||
-              signingStatus.contains('delivered') ||
-              signingStatus.contains('تم التسليم');
-          final returnedByStatus = signingStatus.contains('return') ||
-              signingStatus.contains('returned') ||
-              signingStatus.contains('مرتجع');
-          final hasSigningStatus = signingStatus.isNotEmpty;
-          final inferredDeliveredByAmount = amount >= 4000;
-          final isDelivered = returnedByStatus
-              ? false
-              : (deliveredByStatus || fee > 0 || (!hasSigningStatus && inferredDeliveredByAmount));
+        if (exactMatches.isNotEmpty) {
+          if (targetGov.isEmpty) return exactMatches.first;
+          for (final oi in exactMatches) {
+            final orderGov = _normalizeGovernorateForMatch(orders[oi]['governorate'] ?? '');
+            if (orderGov == targetGov) return oi;
+          }
+          return exactMatches.first;
+        }
 
-          if (isDelivered && isExternalTransfer) cashDeliveredCount++;
+        if (targetGov.isEmpty) return -1;
 
-          if (isDelivered && amount > 0 && !isExternalTransfer) {
-            totalCodAmount += amount;
-            totalServiceFee += fee;
-            count++;
+        int bestIdx = -1;
+        double bestScore = 0.0;
+        for (int oi = 0; oi < orders.length; oi++) {
+          if (usedOrderIndices.contains(oi)) continue;
+          final order = orders[oi];
+          final status = _normalizeArabicName(order['status'] ?? '');
+          if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
 
-            final sheetName = (cellAt(receiverNameIndex)?.toString() ?? '').trim();
-            final sheetGov = (cellAt(destinationIndex)?.toString() ?? '').trim();
-            final sheetPhone = _normalizePhone((cellAt(receiverPhoneIndex)?.toString() ?? '').trim());
-            final matchedCustomer = _findBestCustomerForSheetRow(
-              sheetName: sheetName,
-              sheetGov: sheetGov,
-              sheetPhone: sheetPhone,
-            );
+          final orderGov = _normalizeGovernorateForMatch(order['governorate'] ?? '');
+          if (orderGov != targetGov) continue;
 
-            var bestIndex = -1;
-            var bestScore = 0.0;
-            final candidateScores = <({int idx, double score})>[];
-            final allScores = <({int idx, double score})>[];
-            final candidateGovMismatch = <int, bool>{};
-            final candidateNameScore = <int, double>{};
-            final candidateGovScore = <int, double>{};
-            final candidateAmountScore = <int, double>{};
-            final candidatePhoneScore = <int, double>{};
-            final candidateCustomerFit = <int, bool>{};
-            for (var oi = 0; oi < orders.length; oi++) {
-              if (usedOrderIndices.contains(oi)) continue;
-              final order = orders[oi];
-              final status = _normalizeArabicName(order['status'] ?? '');
-              if (status == 'delivered' || status == 'cancelled' || status == 'canceled') continue;
+          final orderName = _normalizePersonNameForMatch(order['name'] ?? '');
+          if (orderName.isEmpty) continue;
 
-              final nameScore = _nameMatchScore(sheetName, order['name'] ?? '');
-              final govScore = _governorateMatchScore(sheetGov, order['governorate'] ?? '');
-              final sheetGovNorm = _normalizeGovernorateForMatch(sheetGov);
-              final orderGovNorm = _normalizeGovernorateForMatch(order['governorate'] ?? '');
-              final govMismatch = sheetGovNorm.isNotEmpty && orderGovNorm.isNotEmpty && govScore == 0.0;
-              candidateGovMismatch[oi] = govMismatch;
-              candidateNameScore[oi] = nameScore;
-              final orderPhones = _orderPhones(order).toSet();
-              final phoneScore = (sheetPhone.isNotEmpty && orderPhones.contains(sheetPhone)) ? 1.0 : 0.0;
-              candidatePhoneScore[oi] = phoneScore;
-              final customerFit = matchedCustomer != null && _orderMatchesCustomer(order, matchedCustomer);
-              candidateCustomerFit[oi] = customerFit;
-              if (matchedCustomer != null && !customerFit && phoneScore < 1.0 && nameScore < 0.9) {
-                continue;
-              }
-              final codTotal = _parseIntSafe(order['cod_total'] ?? '');
-              final basePrice = _parseIntSafe(order['price'] ?? '');
-              final shippingFee = _parseIntSafe(order['shipping'] ?? '');
-              final discount = _parseIntSafe(order['discount'] ?? '');
-              final count = _parseIntSafe(order['count'] ?? '1');
-              final safeCount = count <= 0 ? 1 : count;
-              final expectedAmountSingle = codTotal > 0 ? codTotal : (basePrice > 0 ? (basePrice - discount + shippingFee) : 0);
-              final expectedAmountMulti = basePrice > 0 ? ((basePrice * safeCount) - discount + shippingFee) : 0;
-              var expectedAmount = expectedAmountSingle;
-              if (expectedAmountSingle > 0 && expectedAmountMulti > 0) {
-                final d1 = (amount - expectedAmountSingle).abs();
-                final d2 = (amount - expectedAmountMulti).abs();
-                expectedAmount = d2 < d1 ? expectedAmountMulti : expectedAmountSingle;
-              } else if (expectedAmountSingle <= 0 && expectedAmountMulti > 0) {
-                expectedAmount = expectedAmountMulti;
-              }
-
-              double amountScore = 0.0;
-              if (expectedAmount > 0) {
-                final diff = (amount - expectedAmount).abs();
-                final ratio = diff / expectedAmount;
-                if (diff <= 200) {
-                  amountScore = 1.0;
-                } else if (diff <= 800 || ratio <= 0.15) {
-                  amountScore = 0.75;
-                } else if (diff <= 1500 || ratio <= 0.30) {
-                  amountScore = 0.45;
-                }
-              }
-              candidateAmountScore[oi] = amountScore;
-              candidateGovScore[oi] = govScore;
-
-              // Prevent false positives: if governorate conflicts, require near-exact name.
-              if (govMismatch && nameScore < 0.9 && phoneScore < 1.0) {
-                continue;
-              }
-
-              var score = (nameScore * 0.60) + (govScore * 0.25) + (amountScore * 0.05) + (phoneScore * 0.10);
-              if (customerFit) {
-                score += 0.10;
-              }
-              if (phoneScore >= 1.0 && amountScore >= 0.75) {
-                score = score < 0.93 ? 0.93 : score;
-              } else if (amountScore >= 0.95 && govScore >= 0.85 && nameScore >= 0.20) {
-                score = score < 0.72 ? 0.72 : score;
-              } else if (amountScore >= 0.75 && govScore >= 0.85 && nameScore >= 0.35) {
-                score = score < 0.62 ? 0.62 : score;
-              } else if (nameScore >= 0.82 && govScore >= 0.85) {
-                score = score < 0.90 ? 0.90 : score;
-              } else if (nameScore >= 0.90 && (govScore > 0.0 || phoneScore >= 1.0)) {
-                score = score < 0.88 ? 0.88 : score;
-              }
-              if (govMismatch) {
-                score *= 0.8;
-              }
-              allScores.add((idx: oi, score: score));
-              if (score >= 0.30) {
-                candidateScores.add((idx: oi, score: score));
-              }
-               
-              if (score > bestScore) {
-                bestScore = score;
-                bestIndex = oi;
-              }
-            }
-
-            candidateScores.sort((a, b) => b.score.compareTo(a.score));
-            allScores.sort((a, b) => b.score.compareTo(a.score));
-            int? resolvedIndex;
-            var resolvedScore = bestScore;
-            final topCandidates = allScores.where((x) => x.score >= 0.15).take(6).map((x) => x.idx).toList();
-            if (topCandidates.isNotEmpty) {
-              final aiPick = await _resolveDeliveryMatchWithAi(
-                sheetName: sheetName,
-                sheetGov: sheetGov,
-                amount: amount,
-                fee: fee,
-                shipping: shipping,
-                candidateIndices: topCandidates,
-              );
-              if (aiPick != null && aiPick.confidence >= 0.60) {
-                final aiMismatch = candidateGovMismatch[aiPick.orderIndex] ?? false;
-                final aiNameScore = candidateNameScore[aiPick.orderIndex] ?? 0.0;
-                if (!aiMismatch || aiNameScore >= 0.92) {
-                  resolvedIndex = aiPick.orderIndex;
-                  resolvedScore = aiPick.confidence;
-                }
-              }
-            }
-
-            if (resolvedIndex == null && candidateScores.isNotEmpty) {
-              final top = candidateScores.first;
-              final topOrder = orders[top.idx];
-              final topNameScore = candidateNameScore[top.idx] ?? 0.0;
-              final topGovScore = _governorateMatchScore(sheetGov, topOrder['governorate'] ?? '');
-              final topPhones = _orderPhones(topOrder).toSet();
-              final topPhoneExact = sheetPhone.isNotEmpty && topPhones.contains(sheetPhone);
-              if (topPhoneExact && (topGovScore >= 0.85 || topNameScore >= 0.50)) {
-                resolvedIndex = top.idx;
-                resolvedScore = top.score < 0.95 ? 0.95 : top.score;
-              } else {
-                final secondScore = candidateScores.length > 1 ? candidateScores[1].score : 0.0;
-                final topAmountScore = candidateAmountScore[top.idx] ?? 0.0;
-                final topGov = candidateGovScore[top.idx] ?? 0.0;
-                final topCustomerFit = candidateCustomerFit[top.idx] ?? false;
-                if (topCustomerFit && top.score >= 0.50 && topNameScore >= 0.45 && topGov >= 0.85) {
-                  resolvedIndex = top.idx;
-                  resolvedScore = top.score < 0.82 ? 0.82 : top.score;
-                } else if (top.score >= 0.58 && (top.score - secondScore) >= 0.08) {
-                  resolvedIndex = top.idx;
-                  resolvedScore = top.score;
-                } else if (top.score >= 0.50 && topNameScore >= 0.55 && topGov >= 0.85) {
-                  resolvedIndex = top.idx;
-                  resolvedScore = top.score;
-                } else if (topAmountScore >= 0.95 && topGov >= 0.85) {
-                  resolvedIndex = top.idx;
-                  resolvedScore = top.score < 0.66 ? 0.66 : top.score;
-                }
-              }
-            }
-
-            if (resolvedIndex == null && bestIndex != -1 && bestScore >= 0.55) {
-              resolvedIndex = bestIndex;
-              resolvedScore = bestScore;
-            }
-
-            void unresolvedAdd() {
-              unmatchedDelivered++;
-              final inferred = _inferCountsFromSheetAmount(amount);
-              final topScore = candidateScores.isNotEmpty ? candidateScores.first.score.toStringAsFixed(2) : '0.00';
-              unmatchedRows.add({
-                'sheet_name': sheetName,
-                'sheet_governorate': sheetGov,
-                'sheet_phone': sheetPhone,
-                'sheet_amount': amount.toStringAsFixed(0),
-                'reason': 'manual_select_needed (top=$topScore)',
-                'inferred_15': (inferred['15'] ?? 0).toString(),
-                'inferred_16': (inferred['16'] ?? 0).toString(),
-                'inferred_17': (inferred['17'] ?? 0).toString(),
-              });
-              auto15 += inferred['15'] ?? 0;
-              auto16 += inferred['16'] ?? 0;
-              auto17 += inferred['17'] ?? 0;
-            }
-
-            if (resolvedIndex == null) {
-              final sheetTokens = _nameTokensForFuzzy(sheetName);
-              final sheetGovNorm = _normalizeGovernorateForMatch(sheetGov);
-
-              final customerCandidates = <Map<String, String>>[];
-              for (final c in customers) {
-                final customerName = c['name'] ?? '';
-                final customerGov = c['governorate'] ?? '';
-                final customerGovNorm = _normalizeGovernorateForMatch(customerGov);
-                final govCompatible = sheetGovNorm.isEmpty || customerGovNorm.isEmpty || sheetGovNorm.contains(customerGovNorm) || customerGovNorm.contains(sheetGovNorm);
-                if (!govCompatible) continue;
-
-                final customerTokens = _nameTokensForFuzzy(customerName);
-                if (sheetTokens.isEmpty || customerTokens.isEmpty) continue;
-
-                final anyTokenMatch = sheetTokens.any((st) => customerTokens.any((ct) => _tokenMatch(st, ct)));
-                if (!anyTokenMatch) continue;
-
-                final tScore = _tokenScore(sheetTokens, customerTokens);
-                if (tScore <= 0) continue;
-                customerCandidates.add({
-                  'name': customerName,
-                  'governorate': customerGov,
-                  'phone': c['phone'] ?? '',
-                  'address': c['address'] ?? '',
-                  'last_model': c['last_model'] ?? '',
-                  'last_color': c['last_color'] ?? '',
-                  'models_summary': c['models_summary'] ?? '',
-                  'colors_summary': c['colors_summary'] ?? '',
-                  'score': tScore.toStringAsFixed(2),
-                });
-              }
-
-              customerCandidates.sort((a, b) => (double.tryParse(b['score'] ?? '0') ?? 0).compareTo(double.tryParse(a['score'] ?? '0') ?? 0));
-              final topCustomerCandidates = customerCandidates.take(5).toList();
-              print('Unmatched row sheetName="$sheetName", sheetGov="$sheetGov", tokens=$sheetTokens');
-              print('Top candidates for AI fallback: ${topCustomerCandidates.map((c) => "${c['name']}|${c['governorate']}|score=${c['score']}").join(' ; ')}');
-              final aiFallback = await _resolveUnmatchedRowWithGemini(
-                sheetName: sheetName,
-                sheetGov: sheetGov,
-                amount: amount,
-                candidateCustomers: topCustomerCandidates,
-              );
-
-              if (aiFallback != null && (aiFallback['status'] ?? '') == 'matched') {
-                final aiModel = _normalizeModelFromAi(aiFallback['model'] ?? '');
-                final aiColorRaw = aiFallback['color'] ?? '';
-                final aiColor = aiModel.isNotEmpty ? _normalizeColorForModel(aiModel, aiColorRaw) : _normalizeColorNameAny(aiColorRaw);
-                final aiConfidence = aiFallback['confidence'] ?? '';
-
-                matchedDelivered++;
-                matchedRows.add({
-                  'sheet_name': sheetName,
-                  'sheet_governorate': sheetGov,
-                  'sheet_phone': sheetPhone,
-                  'sheet_amount': amount.toStringAsFixed(0),
-                  'order_name': topCustomerCandidates.isNotEmpty ? (topCustomerCandidates.first['name'] ?? sheetName) : sheetName,
-                  'order_governorate': topCustomerCandidates.isNotEmpty ? (topCustomerCandidates.first['governorate'] ?? sheetGov) : sheetGov,
-                  'order_model': aiModel,
-                  'order_color': aiColor,
-                  'score': 'AI_Fallback${aiConfidence.isNotEmpty ? "($aiConfidence)" : ""}',
-                });
-
-                if (aiModel == '15 Pro Max') auto15++;
-                if (aiModel == '16 Pro Max') auto16++;
-                if (aiModel == '17 Pro Max') auto17++;
-              } else {
-                unresolvedAdd();
-              }
-            }
-
-            if (resolvedIndex != null && resolvedScore >= 0.50) {
-              final bestMatchedIndex = resolvedIndex;
-              usedOrderIndices.add(bestMatchedIndex);
-              orders[bestMatchedIndex]['sheet_matched_pending'] = 'true';
-              orders[bestMatchedIndex]['sheet_matched_at'] = DateTime.now().toIso8601String();
-              matchedDelivered++;
-              matchedRows.add({
-                'sheet_name': sheetName,
-                'sheet_governorate': sheetGov,
-                'sheet_phone': sheetPhone,
-                'sheet_amount': amount.toStringAsFixed(0),
-                'order_name': orders[bestMatchedIndex]['name'] ?? '',
-                'order_governorate': orders[bestMatchedIndex]['governorate'] ?? '',
-                'order_model': orders[bestMatchedIndex]['model'] ?? '',
-                'order_color': orders[bestMatchedIndex]['color'] ?? '',
-                'score': resolvedScore.toStringAsFixed(2),
-              });
-              final countsByModel = _extractModelCountsFromOrder(orders[bestMatchedIndex]);
-              auto15 += countsByModel['15'] ?? 0;
-              auto16 += countsByModel['16'] ?? 0;
-              auto17 += countsByModel['17'] ?? 0;
-            } else if (resolvedIndex == null) {
-              unresolvedAdd();
+          final partial = orderName.contains(targetName) || targetName.contains(orderName);
+          final score = _nameMatchScore(sheetName, order['name'] ?? '');
+          if (partial || score >= 0.55) {
+            if (score > bestScore) {
+              bestScore = score;
+              bestIdx = oi;
             }
           }
+        }
+        return bestIdx;
+      }
+
+      for (int i = 1; i < rows.length; i++) {
+        final row = rows[i];
+        if (row.isEmpty) continue;
+
+        dynamic cellAt(int idx) => (idx >= 0 && idx < row.length) ? row[idx] : null;
+
+        final amount = amountIndex != -1 ? _toDoubleSafe(cellAt(amountIndex)) : 0.0;
+        final fee = _toDoubleSafe(cellAt(feeIndex));
+        final shipping = shippingIndex != -1 ? _toDoubleSafe(cellAt(shippingIndex)) : 0.0;
+
+        if (shipping > 0) totalShipping += shipping;
+
+        final isDelivered = fee > 0;
+        if (!isDelivered) continue;
+
+        totalCodAmount += amount;
+        totalServiceFee += fee;
+        count++;
+
+        final sheetName = (cellAt(receiverNameIndex)?.toString() ?? '').trim();
+        final sheetGov = (cellAt(destinationIndex)?.toString() ?? '').trim();
+        final sheetPhone = _normalizePhone((cellAt(receiverPhoneIndex)?.toString() ?? '').trim());
+
+        final matchedIndex = findBestOrderIndex(sheetName, sheetGov);
+        if (matchedIndex != -1) {
+          usedOrderIndices.add(matchedIndex);
+          final matchedOrder = orders[matchedIndex];
+          matchedOrder['sheet_matched_pending'] = 'true';
+          matchedOrder['sheet_matched_at'] = DateTime.now().toIso8601String();
+
+          matchedDelivered++;
+          matchedRows.add({
+            'sheet_name': sheetName,
+            'sheet_governorate': sheetGov,
+            'sheet_phone': sheetPhone,
+            'sheet_amount': amount.toStringAsFixed(0),
+            'order_name': matchedOrder['name'] ?? '',
+            'order_governorate': matchedOrder['governorate'] ?? '',
+            'order_model': matchedOrder['model'] ?? '',
+            'order_color': matchedOrder['color'] ?? '',
+            'score': 'name_gov_match',
+          });
+
+          final countsByModel = _extractModelCountsFromOrder(matchedOrder);
+          auto15 += countsByModel['15'] ?? 0;
+          auto16 += countsByModel['16'] ?? 0;
+          auto17 += countsByModel['17'] ?? 0;
+        } else {
+          unmatchedDelivered++;
+          unmatchedRows.add({
+            'sheet_name': sheetName,
+            'sheet_governorate': sheetGov,
+            'sheet_phone': sheetPhone,
+            'sheet_amount': amount.toStringAsFixed(0),
+            'reason': 'manual_select_needed (name_governorate_only)',
+          });
         }
       }
 
       totalDeductions = totalServiceFee + totalShipping;
       totalNet = totalCodAmount - totalDeductions;
 
-      int cash15 = 0;
-      int cash16 = 0;
-      int cash17 = 0;
-
-      if (cashDeliveredCount > 0) {
-        final cashModels = await _showCashDeliveredDeviceDialog(cashDeliveredCount);
-        if (!mounted) return;
-        if (cashModels != null) {
-          cash15 = cashModels['15'] ?? 0;
-          cash16 = cashModels['16'] ?? 0;
-          cash17 = cashModels['17'] ?? 0;
-        }
-      }
-
       setState(() {
         collectionController.text = totalNet.toStringAsFixed(2);
-        count15Controller.text = (auto15 + cash15).toString();
-        count16Controller.text = (auto16 + cash16).toString();
-        count17Controller.text = (auto17 + cash17).toString();
+        count15Controller.text = auto15.toString();
+        count16Controller.text = auto16.toString();
+        count17Controller.text = auto17.toString();
         _rebuildCustomersFromOrders();
         _lastSheetMatchedRows = matchedRows;
         _lastSheetUnmatchedRows = unmatchedRows;
@@ -2474,13 +2220,12 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       });
       await _saveData();
       await _addLogEntry("مطابقة تسليم الشيت", "مطابقات بانتظار التأكيد: $matchedDelivered\nحالات غير مؤكدة: $unmatchedDelivered");
-      _showResultDialog(count + cashDeliveredCount, totalDeductions, totalNet, auto15 + cash15, auto16 + cash16, auto17 + cash17);
+      _showResultDialog(count, totalDeductions, totalNet, auto15, auto16, auto17);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("? خطأ: $e")));
     }
   }
-
-  void _showResultDialog(int count, double ded, double net, int a15, int a16, int a17) {
+void _showResultDialog(int count, double ded, double net, int a15, int a16, int a17) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
