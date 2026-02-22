@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -1058,7 +1058,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           .post(
             uri,
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'text': rawText}),
+            body: jsonEncode({'text': rawText, 'strict_ai': false}),
           )
           .timeout(const Duration(seconds: 30));
 

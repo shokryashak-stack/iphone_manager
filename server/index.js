@@ -5,6 +5,12 @@ const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const AI_PROVIDER = String(process.env.AI_PROVIDER || "auto").toLowerCase();
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 const GEMINI_MODELS = [
   "gemini-2.0-flash",
@@ -169,9 +175,101 @@ function isModelNotFoundError(message) {
   );
 }
 
+async function callOpenAICompatible({
+  apiKey,
+  baseUrl,
+  model,
+  promptText,
+  referer,
+  title,
+}) {
+  if (!apiKey) {
+    throw new Error("OpenAI-compatible API key is missing");
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+  if (referer) headers["HTTP-Referer"] = referer;
+  if (title) headers["X-Title"] = title;
+
+  const response = await fetch(`${baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      messages: [{ role: "user", content: promptText }],
+    }),
+  });
+
+  const raw = await response.text();
+  if (!response.ok) {
+    throw new Error(`OpenAI-compatible HTTP ${response.status}: ${raw}`);
+  }
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {}
+
+  const content = parsed?.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("OpenAI-compatible response has no choices[0].message.content");
+  }
+  return String(content);
+}
+
 async function generateWithFallbackModels(promptText) {
+  const providerErrors = [];
+
+  const canUseOpenRouter = !!OPENROUTER_API_KEY;
+  const canUseOpenAI = !!OPENAI_API_KEY;
+  const canUseGemini = !!getGeminiAi();
+
+  const tryOpenRouter = AI_PROVIDER === "openrouter" || (AI_PROVIDER === "auto" && canUseOpenRouter);
+  if (tryOpenRouter) {
+    try {
+      return await callOpenAICompatible({
+        apiKey: OPENROUTER_API_KEY,
+        baseUrl: "https://openrouter.ai/api/v1",
+        model: OPENROUTER_MODEL,
+        promptText,
+        referer: process.env.OPENROUTER_REFERER || "https://iphone-manager.onrender.com",
+        title: process.env.OPENROUTER_TITLE || "iphone_manager_ai_proxy",
+      });
+    } catch (error) {
+      providerErrors.push(`openrouter: ${error?.message || String(error)}`);
+      if (AI_PROVIDER === "openrouter") throw error;
+    }
+  }
+
+  const tryOpenAI = AI_PROVIDER === "openai" || (AI_PROVIDER === "auto" && !canUseOpenRouter && canUseOpenAI);
+  if (tryOpenAI) {
+    try {
+      return await callOpenAICompatible({
+        apiKey: OPENAI_API_KEY,
+        baseUrl: OPENAI_BASE_URL,
+        model: OPENAI_MODEL,
+        promptText,
+      });
+    } catch (error) {
+      providerErrors.push(`openai: ${error?.message || String(error)}`);
+      if (AI_PROVIDER === "openai") throw error;
+    }
+  }
+
+  const tryGemini = AI_PROVIDER === "gemini" || AI_PROVIDER === "auto";
+  if (!tryGemini) {
+    throw new Error(`AI provider '${AI_PROVIDER}' is invalid. Use auto|gemini|openrouter|openai`);
+  }
+
   const ai = getGeminiAi();
   if (!ai) {
+    if (providerErrors.length) {
+      throw new Error(`No working AI provider. ${providerErrors.join(" | ")} | gemini: GEMINI_API_KEY missing`);
+    }
     throw new Error("GEMINI_API_KEY is missing");
   }
 
@@ -199,6 +297,9 @@ async function generateWithFallbackModels(promptText) {
     }
   }
 
+  if (providerErrors.length) {
+    throw new Error(`${providerErrors.join(" | ")} | gemini: ${lastError?.message || "No supported Gemini model found"}`);
+  }
   throw lastError || new Error("No supported Gemini model found");
 }
 

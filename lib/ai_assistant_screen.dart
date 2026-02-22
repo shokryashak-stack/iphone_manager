@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'config.dart';
@@ -162,9 +163,9 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
           .post(
             uri,
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'text': text}),
+            body: jsonEncode({'text': text, 'strict_ai': false}),
           )
-          .timeout(const Duration(seconds: 35));
+          .timeout(const Duration(seconds: 90));
 
       if (response.statusCode != 200) {
         if (response.statusCode == 503 &&
@@ -209,6 +210,14 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       setState(() {
         _messages.add(_Message(text: reply, isUser: false));
         if (reply.startsWith('✅')) _bulkController.clear();
+      });
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          const _Message(text: '⏳ السيرفر خد وقت طويل (Timeout). ممكن يكون نايم، حاول تاني.', isUser: false),
+        );
+        _bulkSending = false;
       });
     } catch (e) {
       if (!mounted) return;
