@@ -5,7 +5,7 @@ const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+
 const GEMINI_MODELS = [
   "gemini-2.0-flash",
   "gemini-2.5-flash",
@@ -144,14 +144,21 @@ function parseRuleBased(textRaw) {
   };
 }
 
+// ============== التعديل الجديد هنا ==============
 let geminiAi = null;
+let currentApiKey = null;
+
 function getGeminiAi() {
-  if (!GEMINI_API_KEY) return null;
-  if (!geminiAi) {
-    geminiAi = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const activeKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+  if (!activeKey) return null;
+
+  if (!geminiAi || currentApiKey !== activeKey) {
+    geminiAi = new GoogleGenerativeAI(activeKey);
+    currentApiKey = activeKey;
   }
   return geminiAi;
 }
+// ===============================================
 
 function isModelNotFoundError(message) {
   const s = String(message || "").toLowerCase();
@@ -351,7 +358,6 @@ function extractNormalizedColors(textRaw) {
     if (!colors.includes(c)) colors.push(c);
   };
 
-  // Try to focus on "لون/الوان" section first (often contains multiple colors)
   const m = text.match(/(?:الوان|ألوان|اللون|لون)\s*[:\/]?\s*([^\n]+)/i);
   if (m && m[1]) {
     const seg = normalizeSpaces(m[1]);
@@ -360,10 +366,8 @@ function extractNormalizedColors(textRaw) {
     }
   }
 
-  // Also scan lines for standalone colors (e.g. "لون /اسود" on next line)
   const lines = text.split("\n").map((l) => normalizeSpaces(l)).filter(Boolean);
   for (const line of lines) {
-    // If line is short and contains a color word, capture it.
     const c = normalizeColorNameAny(line);
     if (c) push(c);
   }
@@ -707,7 +711,6 @@ app.post("/ai/parse_orders", async (req, res) => {
     const blocks = splitWhatsAppBlocks(text);
     const ruleParsedByBlock = blocks.map(parseWhatsAppBlockRuleBased);
 
-    // AI-first parsing (strict by default). If AI is unavailable, return clear error instead of silent fallback.
     let aiFailureReason = "";
     try {
       const prompt = `
@@ -908,7 +911,7 @@ ${JSON.stringify(compact, null, 2)}
 إذا لم تجد تطابق أو كان الاسم مختلفاً تماماً، أرجع:
 {"status": "manual"}
 
-أرجع JSON فقط بدون أي نصوص أخرى أو علامات Markdown.
+أرجع JSON فقط بدون أي نصوص أخرى أنا علامات Markdown.
     `.trim();
 
     const raw = await generateWithFallbackModels(prompt);
@@ -948,6 +951,7 @@ ${JSON.stringify(compact, null, 2)}
     });
   }
 });
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`AI proxy running on http://localhost:${PORT}`);
 });
