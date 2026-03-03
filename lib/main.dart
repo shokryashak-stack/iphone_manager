@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -3949,6 +3949,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   @override
   Widget build(BuildContext context) {
     bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final cashCounts = _pendingCashOneCountsByModel();
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF050505)
@@ -4028,12 +4029,40 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                         ),
                       ),
                       const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          "كاش 1 جنيه (خارج الحسابات): 15=${cashCounts['15']} | 16=${cashCounts['16']} | 17=${cashCounts['17']}",
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                     ],
-                    _buildDeviceRow("15 Pro Max", stock15, count15Controller),
+                    _buildDeviceRow(
+                      "15 Pro Max",
+                      stock15,
+                      count15Controller,
+                      cashOnlyCount: cashCounts['15'] ?? 0,
+                    ),
                     const SizedBox(height: 10),
-                    _buildDeviceRow("16 Pro Max", stock16, count16Controller),
+                    _buildDeviceRow(
+                      "16 Pro Max",
+                      stock16,
+                      count16Controller,
+                      cashOnlyCount: cashCounts['16'] ?? 0,
+                    ),
                     const SizedBox(height: 10),
-                    _buildDeviceRow("17 Pro Max", stock17, count17Controller),
+                    _buildDeviceRow(
+                      "17 Pro Max",
+                      stock17,
+                      count17Controller,
+                      cashOnlyCount: cashCounts['17'] ?? 0,
+                    ),
                   ],
                 ),
               ),
@@ -4185,37 +4214,53 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     ),
   );
 
-  Widget _buildDeviceRow(String label, int stock, TextEditingController ctrl) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "المخزون: $stock",
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: stock > 0 ? Colors.green : Colors.red,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+  Widget _buildDeviceRow(
+    String label,
+    int stock,
+    TextEditingController ctrl, {
+    int cashOnlyCount = 0,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
               ),
-            ),
-            SizedBox(
-              width: 88,
-              child: TextField(
+              const SizedBox(height: 2),
+              Text(
+                "المخزون: $stock",
+                style: TextStyle(
+                  fontSize: 15,
+                  color: stock > 0 ? Colors.green : Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (cashOnlyCount > 0)
+                Text(
+                  "كاش 1ج: +$cashOnlyCount (خارج الحسابات)",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.orange.shade700,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        SizedBox(
+          width: 108,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
                 controller: ctrl,
                 textAlign: TextAlign.center,
                 keyboardType: TextInputType.number,
@@ -4237,10 +4282,24 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
-            ),
-          ],
+              if (cashOnlyCount > 0) ...[
+                const SizedBox(height: 4),
+                Text(
+                  "للخصم: ${_parseIntSafe(ctrl.text) + cashOnlyCount}",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.orange.shade700,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _buildActionButtons() => Row(
     children: [
@@ -4434,6 +4493,21 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   List<Map<String, String>> get _pendingCashOneRows => _cashOneSheetRows
       .where((row) => (row['deducted_main'] ?? 'false') != 'true')
       .toList();
+
+  Map<String, int> _pendingCashOneCountsByModel() {
+    int c15 = 0;
+    int c16 = 0;
+    int c17 = 0;
+    for (final row in _pendingCashOneRows) {
+      final model = _normalizeModelFromAi(row['model'] ?? '');
+      final count = _parseIntSafe(row['count'] ?? '1');
+      final safeCount = count <= 0 ? 1 : count;
+      if (model.startsWith('15')) c15 += safeCount;
+      if (model.startsWith('16')) c16 += safeCount;
+      if (model.startsWith('17')) c17 += safeCount;
+    }
+    return {'15': c15, '16': c16, '17': c17};
+  }
 
   Future<void> _showCashOneRowsDialog() async {
     final pending = _pendingCashOneRows;
@@ -6641,4 +6715,4 @@ class _UndoSnapshot {
       customerStatusOverrides: readMapString(j['customerStatusOverrides']),
     );
   }
-}  
+}
