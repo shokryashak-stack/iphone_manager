@@ -2959,6 +2959,19 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         'تحصيل',
       ]);
       if (amountIndex == -1) amountIndex = findHeaderByAll(['cod', 'amount']);
+      int payableIndex = findHeaderIndex([
+        'total payable',
+        'payable',
+        'net payable',
+        'amount payable',
+        'total to pay',
+        'payable amount',
+        'صافي التحصيل',
+        'المبلغ المستحق',
+      ]);
+      if (payableIndex == -1) {
+        payableIndex = findHeaderByAll(['total', 'payable']);
+      }
 
       int feeIndex = findHeaderIndex([
         'cod service fee',
@@ -3077,6 +3090,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         final shipping = shippingIndex != -1
             ? _toDoubleSafe(cellAt(shippingIndex))
             : 0.0;
+        final payable = payableIndex != -1
+            ? _toDoubleSafe(cellAt(payableIndex))
+            : 0.0;
 
         final isDelivered = fee > 0;
         if (!isDelivered) continue;
@@ -3145,6 +3161,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
         totalCodAmount += amount;
         totalServiceFee += fee;
+        if (payableIndex != -1) totalNet += payable;
         count++;
 
         final matchedIndex = findBestOrderIndex(sheetName, sheetGov);
@@ -3218,7 +3235,9 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       }
 
       totalDeductions = totalServiceFee + totalShipping;
-      totalNet = totalCodAmount - totalDeductions;
+      if (payableIndex == -1) {
+        totalNet = totalCodAmount - totalDeductions;
+      }
 
       setState(() {
         collectionController.text = totalNet.toStringAsFixed(2);
