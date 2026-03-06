@@ -88,7 +88,6 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
   static const int _reviewAfterDays = 5;
   static const String _customerStatusOverridePrefsKey =
       'customer_status_override_v1';
-  static const String _cashOneRowsPrefsKey = 'sheet_cash_one_rows_v1';
   final Map<String, String> _customerStatusOverrides = {};
 
   Map<String, Map<String, int>> colorStock = {};
@@ -214,30 +213,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
         } catch (_) {}
       }
 
-      final savedCashOneRows = prefs.getString(_cashOneRowsPrefsKey);
-      if (savedCashOneRows != null && savedCashOneRows.isNotEmpty) {
-        try {
-          final decoded = jsonDecode(savedCashOneRows) as List<dynamic>;
-          _cashOneSheetRows
-            ..clear()
-            ..addAll(
-              decoded.whereType<Map>().map(
-                (e) => Map<String, String>.fromEntries(
-                  e.entries.map(
-                    (entry) => MapEntry(
-                      entry.key.toString(),
-                      (entry.value ?? '').toString(),
-                    ),
-                  ),
-                ),
-              ),
-            );
-        } catch (_) {
-          _cashOneSheetRows.clear();
-        }
-      } else {
-        _cashOneSheetRows.clear();
-      }
+      _cashOneSheetRows.clear();
 
       colorStock = _createDefaultColorStock();
       homeColorStock = _createDefaultColorStock();
@@ -355,7 +331,6 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       _customerStatusOverridePrefsKey,
       jsonEncode(_customerStatusOverrides),
     );
-    await prefs.setString(_cashOneRowsPrefsKey, jsonEncode(_cashOneSheetRows));
   }
 
   void _pushUndo(String label) {
@@ -2720,6 +2695,58 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
     return "📊 المخزن الرئيسي:\n15 Pro Max: $stock15\n16 Pro Max: $stock16\n17 Pro Max: $stock17\n\n🏠 مخزن البيت:\n15 Pro Max: $homeStock15\n16 Pro Max: $homeStock16\n17 Pro Max: $homeStock17";
   }
 
+  Future<String> _checkDuplicateOrdersAction() async {
+    final byPhone = <String, List<Map<String, String>>>{};
+    final byNameGov = <String, List<Map<String, String>>>{};
+
+    for (final order in orders) {
+      for (final phone in _orderPhones(order)) {
+        byPhone.putIfAbsent(phone, () => <Map<String, String>>[]).add(order);
+      }
+      final name = _normalizeArabicName(order['name'] ?? '');
+      final gov = _normalizeArabicName(order['governorate'] ?? '');
+      if (name.isNotEmpty && gov.isNotEmpty) {
+        byNameGov
+            .putIfAbsent('$name|$gov', () => <Map<String, String>>[])
+            .add(order);
+      }
+    }
+
+    final lines = <String>[];
+    int idx = 1;
+
+    for (final entry in byPhone.entries) {
+      final group = entry.value.toSet().toList();
+      if (group.length < 2) continue;
+      lines.add("🔁 مكرر #$idx (رقم): ${entry.key}");
+      for (final o in group) {
+        lines.add("- ${o['name'] ?? '-'} | ${o['governorate'] ?? '-'}");
+      }
+      lines.add('');
+      idx++;
+    }
+
+    for (final entry in byNameGov.entries) {
+      final group = entry.value.toSet().toList();
+      if (group.length < 2) continue;
+      final first = group.first;
+      lines.add(
+        "🔁 مكرر #$idx (اسم+محافظة): ${first['name'] ?? '-'} | ${first['governorate'] ?? '-'}",
+      );
+      for (final o in group) {
+        final phones = _orderPhones(o);
+        lines.add("- أرقام: ${phones.join(' / ')}");
+      }
+      lines.add('');
+      idx++;
+    }
+
+    if (lines.isEmpty) {
+      return "✅ لا يوجد أوردرات مكررة حالياً.";
+    }
+    return "⚠️ يوجد أوردرات مكررة:\n${lines.join('\n').trim()}";
+  }
+
   Future<String> _bulkImportOrdersAction(
     List<Map<String, dynamic>> ordersRaw,
   ) async {
@@ -2761,6 +2788,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
           onCancelOrder: _cancelOrderAction,
           onAddStock: _addStockAction,
           onCheckStock: _checkStockAction,
+          onCheckDuplicates: _checkDuplicateOrdersAction,
           onBulkImport: _bulkImportOrdersAction,
           initialTabIndex: initialTabIndex,
         ),
@@ -2856,6 +2884,7 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       }
 
       List<List<dynamic>> rows = [];
+      double? totalPayableFromSummarySheet;
       String ext = (result.files.single.extension ?? '').toLowerCase();
       final filePath = result.files.single.path;
       if (filePath == null || filePath.isEmpty) {
@@ -2904,6 +2933,39 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
 
         for (var row in excel.tables[selectedTable]!.rows) {
           rows.add(row.map((cell) => cell?.value).toList());
+        }
+
+        for (final table in excel.tables.keys) {
+          final sheetRows = excel.tables[table]!.rows;
+          if (sheetRows.length < 2) continue;
+          final headerRow = sheetRows.first
+              .map((c) => (c?.value ?? '').toString().toLowerCase().trim())
+              .toList();
+
+          int payableIdx = -1;
+          for (int i = 0; i < headerRow.length; i++) {
+            final h = headerRow[i];
+            if (h.contains('total payable') ||
+                h.contains('payable amount') ||
+                h.contains('net payable') ||
+                h.contains('صافي التحصيل') ||
+                h.contains('المبلغ المستحق')) {
+              payableIdx = i;
+              break;
+            }
+          }
+          if (payableIdx == -1) continue;
+
+          double sumPayable = 0.0;
+          for (int r = 1; r < sheetRows.length; r++) {
+            final row = sheetRows[r];
+            if (row.isEmpty || payableIdx >= row.length) continue;
+            sumPayable += _toDoubleSafe(row[payableIdx]?.value);
+          }
+          if (sumPayable > 0) {
+            totalPayableFromSummarySheet = sumPayable;
+            break;
+          }
         }
       } else {
         final input = File(filePath).readAsStringSync();
@@ -3235,7 +3297,10 @@ class _IphoneProfitCalculatorState extends State<IphoneProfitCalculator> {
       }
 
       totalDeductions = totalServiceFee + totalShipping;
-      if (payableIndex == -1) {
+      if (totalPayableFromSummarySheet != null &&
+          totalPayableFromSummarySheet > 0) {
+        totalNet = totalPayableFromSummarySheet;
+      } else if (payableIndex == -1) {
         totalNet = totalCodAmount - totalDeductions;
       }
 

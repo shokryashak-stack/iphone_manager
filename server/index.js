@@ -53,12 +53,13 @@ Allowed actions:
 - cancel_order {action,name,governorate}
 - add_stock {action,model,color,count}
 - check_stock {action}
+- check_duplicates {action}
 - unknown {action,message}
 
 Output rules:
 - Valid JSON only.
 - No markdown.
-- action must be one of: delete_order,cancel_order,add_stock,check_stock,unknown.
+- action must be one of: delete_order,cancel_order,add_stock,check_stock,check_duplicates,unknown.
 - model must be "15" or "16" or "17" when action is add_stock.
 - count must be integer >= 1 when action is add_stock.
 - For unknown, message must be short Arabic text.
@@ -107,6 +108,16 @@ function parseRuleBased(textRaw) {
   if (!text) return { action: "unknown", message: "ط·آ§ط¸ئ’ط·ع¾ط·آ¨ ط·آ£ط¸â€¦ط·آ± ط·آ£ط¸ث†ط¸â€‍ط¸â€¹ط·آ§" };
 
   const lower = text.toLowerCase();
+  if (
+    lower.includes("duplicate") ||
+    lower.includes("duplicated") ||
+    lower.includes("check duplicates") ||
+    text.includes("مكرر") ||
+    text.includes("متكرر") ||
+    text.includes("تكرار")
+  ) {
+    return { action: "check_duplicates" };
+  }
   if (text.includes("ط·آ§ط¸â€‍ط¸â€¦ط·آ®ط·آ²ط¸â€ ") || text.includes("ط·آ§ط¸â€‍ط·آ¬ط·آ±ط·آ¯") || lower.includes("check stock")) {
     return { action: "check_stock" };
   }
@@ -328,6 +339,10 @@ function normalizeAction(payload) {
 
   if (action === "check_stock") {
     return { action: "check_stock" };
+  }
+
+  if (action === "check_duplicates") {
+    return { action: "check_duplicates" };
   }
 
   return { action: "unknown", message: String(payload.message || "ط·آ§ط¸â€‍ط·آ§ط¸â€¦ط·آ± ط·ط›ط¸ظ¹ط·آ± ط¸ث†ط·آ§ط·آ¶ط·آ­").trim() };

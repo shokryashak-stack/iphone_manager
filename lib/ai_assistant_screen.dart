@@ -11,6 +11,7 @@ typedef CancelOrderCallback =
 typedef AddStockCallback =
     Future<String> Function(String model, String color, int count);
 typedef CheckStockCallback = Future<String> Function();
+typedef CheckDuplicatesCallback = Future<String> Function();
 typedef BulkImportCallback =
     Future<String> Function(List<Map<String, dynamic>> orders);
 
@@ -21,6 +22,7 @@ class AIAssistantScreen extends StatefulWidget {
     required this.onCancelOrder,
     required this.onAddStock,
     required this.onCheckStock,
+    required this.onCheckDuplicates,
     required this.onBulkImport,
     this.baseUrl = AppConfig.apiBaseUrl,
     this.initialTabIndex = 0,
@@ -30,6 +32,7 @@ class AIAssistantScreen extends StatefulWidget {
   final CancelOrderCallback onCancelOrder;
   final AddStockCallback onAddStock;
   final CheckStockCallback onCheckStock;
+  final CheckDuplicatesCallback onCheckDuplicates;
   final BulkImportCallback onBulkImport;
   final String baseUrl;
   final int initialTabIndex;
@@ -215,7 +218,10 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       if (!mounted) return;
       setState(() {
         _messages.add(
-          const _Message(text: '⏳ السيرفر خد وقت طويل (Timeout). ممكن يكون نايم، حاول تاني.', isUser: false),
+          const _Message(
+            text: '⏳ السيرفر خد وقت طويل (Timeout). ممكن يكون نايم، حاول تاني.',
+            isUser: false,
+          ),
         );
         _bulkSending = false;
       });
@@ -253,6 +259,8 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
         );
       case 'check_stock':
         return widget.onCheckStock();
+      case 'check_duplicates':
+        return widget.onCheckDuplicates();
       default:
         final message = (actionMap['message'] ?? 'مش فاهم الأمر').toString();
         return '🤖 $message';
